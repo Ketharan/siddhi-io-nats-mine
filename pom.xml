@@ -96,6 +96,11 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
+                <groupId>org.apache.maven.surefire</groupId>
+                <artifactId>surefire-booter</artifactId>
+                <version>${surefire.booter.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.testng</groupId>
                 <artifactId>testng</artifactId>
                 <version>6.11</version>
@@ -110,6 +115,7 @@
                 <artifactId>carbon-feature-plugin</artifactId>
                 <version>${carbon.feature.plugin.version}</version>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-release-plugin</artifactId>
@@ -141,7 +147,8 @@
         <jacoco.plugin.version>0.7.9</jacoco.plugin.version>
         <carbon.feature.plugin.version>3.0.0</carbon.feature.plugin.version>
         <nats.version>2.1.0</nats.version>
-        <surefire.plugin.version>2.10</surefire.plugin.version>
+        <surefire.plugin.version>2.22.0</surefire.plugin.version>
+        <surefire.booter.version>2.22.0</surefire.booter.version>
         <argLine>-Xmx1024m</argLine>
     </properties>
 </project>

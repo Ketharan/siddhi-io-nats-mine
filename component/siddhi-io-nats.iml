@@ -40,6 +40,9 @@
     <orderEntry type="library" scope="TEST" name="Maven: org.testng:testng:6.11" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: com.beust:jcommander:1.64" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.yaml:snakeyaml:1.17" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.maven.surefire:surefire-booter:2.22.0" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.maven.surefire:surefire-api:2.22.0" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.maven.surefire:surefire-logger-api:2.22.0" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.wso2.extension.siddhi.map.xml:siddhi-map-xml:4.0.11" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.apache.ws.commons.axiom:axiom-api:1.2.20" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.apache.geronimo.specs:geronimo-activation_1.1_spec:1.1" level="project" />

@@ -19,7 +19,7 @@ package org.wso2.extension.siddhi.io.nats.sink;
 
 import io.nats.streaming.StreamingConnection;
 import org.apache.log4j.Logger;
-import org.wso2.extension.siddhi.io.nats.sink.exception.StanSinkAdaptorRuntimeException;
+import org.wso2.extension.siddhi.io.nats.sink.exception.NatsSinkAdaptorRuntimeException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,20 +29,20 @@ import java.util.concurrent.TimeoutException;
 /**
  * Handle the logic to publish messages to nats server in a concurrent manner.
  */
-public class StanPublisher implements Runnable {
-    private static final Logger log = Logger.getLogger(StanPublisher.class);
+public class NatsPublisher implements Runnable {
+    private static final Logger log = Logger.getLogger(NatsPublisher.class);
     private String subjectName;
     private StreamingConnection streamingConnection;
     private String message;
 
-    public StanPublisher(String subjectName, StreamingConnection streamingConnection, Object payload) {
+    public NatsPublisher(String subjectName, StreamingConnection streamingConnection, Object payload) {
         this.subjectName = subjectName;
         this.streamingConnection = streamingConnection;
 
         try {
             this.message = handleMessage(payload);
-        } catch (StanSinkAdaptorRuntimeException e) {
-            throw new StanSinkAdaptorRuntimeException("Error while processing the Stan message to destination "
+        } catch (NatsSinkAdaptorRuntimeException e) {
+            throw new NatsSinkAdaptorRuntimeException("Error while processing the Stan message to destination "
                     + subjectName, e);
         }
     }
@@ -52,13 +52,13 @@ public class StanPublisher implements Runnable {
             streamingConnection.publish(subjectName, message.getBytes());
         } catch (IOException e) {
             log.error("Error sending message to destination: " + subjectName, e);
-            throw new StanSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
         } catch (InterruptedException e) {
             log.error("Error sending message to destination: " + subjectName, e);
-            throw new StanSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
         } catch (TimeoutException e) {
             log.error("Error sending message to destination: " + subjectName, e);
-            throw new StanSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
         }
     }
 
@@ -74,7 +74,7 @@ public class StanPublisher implements Runnable {
             byte[] data = ((ByteBuffer) payload).array();
             return data.toString();
         } else {
-            throw new StanSinkAdaptorRuntimeException("The message type is not supported by nats clients");
+            throw new NatsSinkAdaptorRuntimeException("The message type is not supported by nats clients");
         }
     }
 }

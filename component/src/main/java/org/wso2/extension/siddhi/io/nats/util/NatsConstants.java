@@ -15,24 +15,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.wso2.extension.siddhi.io.nats.sink.exception;
+package org.wso2.extension.siddhi.io.nats.util;
 
 /**
- * Encapsulates the sink adapter exception details.
+ * Contains the property key values of nats connection.
  */
-public class StanSinkAdaptorRuntimeException extends RuntimeException {
-    public StanSinkAdaptorRuntimeException() {
-    }
-
-    public StanSinkAdaptorRuntimeException(String message) {
-        super(message);
-    }
-
-    public StanSinkAdaptorRuntimeException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
-    public StanSinkAdaptorRuntimeException(Throwable cause) {
-        super(cause);
-    }
+public class NatsConstants {
+    public static final String DESTINATION = "destination";
+    public static final String BOOTSTRAP_SERVERS = "bootstrap.servers";
+    public static final String CLIENT_ID = "client.id";
+    public static final String CLUSTER_ID = "cluster.id";
+    public static final String MESSAGE_SEQUENCE_NUMBER = "messageSequenceNumber";
+    public static final String DEFAULT_SERVER_URL = "nats://localhost:4222";
+    public static final String DEFAULT_CLUSTER_ID = "test-cluster";
 }

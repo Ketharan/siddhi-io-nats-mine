@@ -22,8 +22,9 @@ import io.nats.streaming.StreamingConnectionFactory;
 import io.nats.streaming.Subscription;
 import io.nats.streaming.SubscriptionOptions;
 import org.apache.log4j.Logger;
-import org.wso2.extension.siddhi.io.nats.source.exception.StanInputAdaptorRuntimeException;
-import org.wso2.extension.siddhi.io.nats.util.StanConstants;
+import org.wso2.extension.siddhi.io.nats.source.exception.NatsInputAdaptorRuntimeException;
+import org.wso2.extension.siddhi.io.nats.util.NatsConstants;
+import org.wso2.extension.siddhi.io.nats.util.NatsUtils;
 import org.wso2.siddhi.annotation.Example;
 import org.wso2.siddhi.annotation.Extension;
 import org.wso2.siddhi.annotation.Parameter;
@@ -34,6 +35,7 @@ import org.wso2.siddhi.core.stream.input.source.Source;
 import org.wso2.siddhi.core.stream.input.source.SourceEventListener;
 import org.wso2.siddhi.core.util.config.ConfigReader;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
+import org.wso2.siddhi.query.api.definition.StreamDefinition;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,35 +49,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Extension(
         name = "nats",
         namespace = "source",
-        description = "Stan Source allows users to subscribe to a Stan broker and receive messages. It has the "
+        description = "Nats Source allows users to subscribe to a Stan broker and receive messages. It has the "
                 + "ability to receive Text based messages.",
         parameters = {
-                @Parameter(name = StanConstants.DESTINATION,
+                @Parameter(name = NatsConstants.DESTINATION,
                         description = "Subject name which Stan Source should subscribe to",
                         type = DataType.STRING
                 ),
-                @Parameter(name = StanConstants.BOOTSTRAP_SERVERS,
+                @Parameter(name = NatsConstants.BOOTSTRAP_SERVERS,
                         description = "The nats based url of the nats server. Coma seperated url values can be used "
                                 + "in case of a cluster used.",
-                        type = DataType.STRING
-                ),
-                @Parameter(name = StanConstants.CLIENT_ID,
-                        description = "The identifier of the client subscribing/connecting to the nats broker",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = "stan_client"
+                        defaultValue = NatsConstants.DEFAULT_SERVER_URL
                 ),
-                @Parameter(name = StanConstants.CLUSTER_ID,
+                @Parameter(name = NatsConstants.CLIENT_ID,
+                        description = "The identifier of the client subscribing/connecting to the nats broker",
+                        type = DataType.STRING
+                ),
+                @Parameter(name = NatsConstants.CLUSTER_ID,
                         description = "The identifier of the nats server/cluster.",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = "test-cluster"
+                        defaultValue = NatsConstants.DEFAULT_CLUSTER_ID
                 ),
         },
         examples = {
                 @Example(description = "This example shows how to subscribe to a nats subject.",
                         syntax = "@source(type='nats', @map(type='text'), "
-                                + "destination='SP_STAN_INPUT_TEST', "
+                                + "destination='SP_NATS_INPUT_TEST', "
                                 + "bootstrap.servers='nats://localhost:4222',"
                                 + "client.id='stan_client'"
                                 + "server.id='test-cluster"
@@ -84,8 +86,8 @@ import java.util.concurrent.atomic.AtomicInteger;
         }
 )
 
-public class StanSource extends Source {
-    private static final Logger log = Logger.getLogger(StanSource.class);
+public class NatsSource extends Source {
+    private static final Logger log = Logger.getLogger(NatsSource.class);
     private SourceEventListener sourceEventListener;
     private OptionHolder optionHolder;
     private StreamingConnection streamingConnection;
@@ -95,7 +97,7 @@ public class StanSource extends Source {
     private String natsUrl;
     private Subscription subscription;
     private SiddhiAppContext siddhiAppContext;
-    private StanMessageProcessor stanMessageProcessor;
+    private NatsMessageProcessor natsMessageProcessor;
     private AtomicInteger lastSentSequenceNo = new AtomicInteger(0);
     private String siddhiAppName;
     /**
@@ -115,7 +117,7 @@ public class StanSource extends Source {
         this.sourceEventListener = sourceEventListener;
         this.optionHolder = optionHolder;
         this.siddhiAppContext = siddhiAppContext;
-        this.stanMessageProcessor = new StanMessageProcessor(sourceEventListener, siddhiAppContext ,
+        this.natsMessageProcessor = new NatsMessageProcessor(sourceEventListener, siddhiAppContext ,
                 lastSentSequenceNo);
         this.siddhiAppName = siddhiAppContext.getName();
         initStanProperties();
@@ -156,7 +158,7 @@ public class StanSource extends Source {
      */
     @Override
     public void disconnect() {
-        lastSentSequenceNo.set(stanMessageProcessor.getMessageSequenceTracker().get());
+        lastSentSequenceNo.set(natsMessageProcessor.getMessageSequenceTracker().get());
         try {
             if (subscription != null) {
                 subscription.unsubscribe();
@@ -223,21 +225,24 @@ public class StanSource extends Source {
 
     private void subscribe() {
         try {
-            subscription =  streamingConnection.subscribe(destination , stanMessageProcessor , new SubscriptionOptions
+            subscription =  streamingConnection.subscribe(destination , natsMessageProcessor, new SubscriptionOptions
                     .Builder().startAtSequence(lastSentSequenceNo.get()).build());
         } catch (IOException | InterruptedException | TimeoutException e) {
             log.error("Error occurred in initializing the Stan receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId());
-            throw new StanInputAdaptorRuntimeException("Error occurred in initializing the Stan receiver for stream: "
+            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the Stan receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId(), e);
         }
     }
 
     private void initStanProperties() {
-        this.destination = optionHolder.validateAndGetStaticValue(StanConstants.DESTINATION, null);
-        this.clusterId = optionHolder.validateAndGetStaticValue(StanConstants.CLUSTER_ID, null);
-        this.clientId = optionHolder.validateAndGetStaticValue(StanConstants.CLIENT_ID, null);
-        this.natsUrl = optionHolder.validateAndGetStaticValue(StanConstants.BOOTSTRAP_SERVERS, null);
+        this.destination = optionHolder.validateAndGetStaticValue(NatsConstants.DESTINATION);
+        this.clusterId = optionHolder.validateAndGetStaticValue(NatsConstants.CLUSTER_ID,
+                NatsConstants.DEFAULT_CLUSTER_ID);
+        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID);
+        this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
+                NatsConstants.DEFAULT_SERVER_URL);
+        NatsUtils.validateNatsUrl(natsUrl, sourceEventListener.getStreamDefinition().getId());
     }
 }
 

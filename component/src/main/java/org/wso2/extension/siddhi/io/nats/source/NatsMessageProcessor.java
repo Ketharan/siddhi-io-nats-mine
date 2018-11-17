@@ -29,14 +29,14 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Process the nats subject subscription channel in concurrent safe manner.
  */
-public class StanMessageProcessor implements MessageHandler {
+public class NatsMessageProcessor implements MessageHandler {
     private SourceEventListener sourceEventListener;
     private boolean paused;
     private ReentrantLock lock;
     private Condition condition;
     private AtomicInteger messageSequenceTracker;
 
-    public StanMessageProcessor(SourceEventListener sourceEventListener, SiddhiAppContext siddhiAppContext ,
+    public NatsMessageProcessor(SourceEventListener sourceEventListener, SiddhiAppContext siddhiAppContext ,
                                 AtomicInteger messageSequenceTracker) {
         this.sourceEventListener = sourceEventListener;
         this.messageSequenceTracker = messageSequenceTracker;

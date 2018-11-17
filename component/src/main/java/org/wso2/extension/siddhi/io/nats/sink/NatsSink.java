@@ -20,8 +20,9 @@ package org.wso2.extension.siddhi.io.nats.sink;
 import io.nats.streaming.StreamingConnection;
 import io.nats.streaming.StreamingConnectionFactory;
 import org.apache.log4j.Logger;
-import org.wso2.extension.siddhi.io.nats.sink.exception.StanSinkAdaptorRuntimeException;
-import org.wso2.extension.siddhi.io.nats.util.StanConstants;
+import org.wso2.extension.siddhi.io.nats.sink.exception.NatsSinkAdaptorRuntimeException;
+import org.wso2.extension.siddhi.io.nats.util.NatsConstants;
+import org.wso2.extension.siddhi.io.nats.util.NatsUtils;
 import org.wso2.siddhi.annotation.Example;
 import org.wso2.siddhi.annotation.Extension;
 import org.wso2.siddhi.annotation.Parameter;
@@ -46,48 +47,49 @@ import java.util.concurrent.TimeoutException;
 @Extension(
         name = "nats",
         namespace = "sink",
-        description = "Stan Sink allows users to subscribe to a Stan broker and publish messages.",
+        description = "Nats Sink allows users to subscribe to a Stan broker and publish messages.",
         parameters = {
-                @Parameter(name = StanConstants.DESTINATION,
-                        description = "Subject name which Stan sink should publish to",
+                @Parameter(name = NatsConstants.DESTINATION,
+                        description = "Subject name which nats sink should publish to",
                         type = DataType.STRING,
                         dynamic = true
                 ),
-                @Parameter(name = StanConstants.BOOTSTRAP_SERVERS,
+                @Parameter(name = NatsConstants.BOOTSTRAP_SERVERS,
                         description = "The nats based url of the nats server. Coma separated url values can be used "
                                 + "in case of a cluster used.",
-                        type = DataType.STRING
-                ),
-                @Parameter(name = StanConstants.CLIENT_ID,
-                        description = "The identifier of the client publishing/connecting to the nats broker",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = "stan_client"
+                        defaultValue = NatsConstants.DEFAULT_SERVER_URL
                 ),
-                @Parameter(name = StanConstants.CLUSTER_ID,
+                @Parameter(name = NatsConstants.CLIENT_ID,
+                        description = "The identifier of the client publishing/connecting to the nats broker",
+                        type = DataType.STRING
+                ),
+                @Parameter(name = NatsConstants.CLUSTER_ID,
                         description = "The identifier of the nats server/cluster.",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = "test-cluster"
+                        defaultValue = NatsConstants.DEFAULT_CLUSTER_ID
                 ),
         },
         examples = {
                 @Example(description = "This example shows how to publish to a nats subject.",
                         syntax = "@sink(type='nats', @map(type='xml'), "
-                                + "destination='SP_STAN_OUTPUT_TEST', "
-                                + "bootstrap.servers='nats://localhost',"
-                                + "client.id='stan_client'"
+                                + "destination='SP_NATS_OUTPUT_TEST', "
+                                + "bootstrap.servers='nats://localhost:4222',"
+                                + "client.id='nats_client'"
                                 + "server.id='test-cluster"
                                 + ")\n" +
                                 "define stream outputStream (name string, age int, country string);")
         }
 )
 
-public class StanSink extends Sink {
-    private static final Logger log = Logger.getLogger(StanSink.class);
+public class NatsSink extends Sink {
+    private static final Logger log = Logger.getLogger(NatsSink.class);
     private StreamingConnectionFactory streamingConnectionFactory;
     private StreamingConnection streamingConnection;
     private OptionHolder optionHolder;
+    private StreamDefinition streamDefinition;
     private Option destination;
     private String clusterId;
     private String clientId;
@@ -123,10 +125,8 @@ public class StanSink extends Sink {
     protected void init(StreamDefinition streamDefinition, OptionHolder optionHolder, ConfigReader configReader,
             SiddhiAppContext siddhiAppContext) {
         this.optionHolder = optionHolder;
-        this.destination = optionHolder.getOrCreateOption(StanConstants.DESTINATION, null);
-        this.clusterId = optionHolder.validateAndGetStaticValue(StanConstants.CLUSTER_ID, null);
-        this.clientId = optionHolder.validateAndGetStaticValue(StanConstants.CLIENT_ID, null);
-        this.natsUrl = optionHolder.validateAndGetStaticValue(StanConstants.BOOTSTRAP_SERVERS, null);
+        this.streamDefinition = streamDefinition;
+        validateAndInitStanProperties();
     }
 
     /**
@@ -142,13 +142,13 @@ public class StanSink extends Sink {
             streamingConnection.publish(destination.getValue(dynamicOptions), handleMessage(payload).getBytes());
         } catch (IOException e) {
             log.error("Error sending message to destination: " + destination, e);
-            throw new StanSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
         } catch (InterruptedException e) {
             log.error("Error sending message to destination: " + destination, e);
-            throw new StanSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
         } catch (TimeoutException e) {
             log.error("Error sending message to destination: " + destination, e);
-            throw new StanSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
         }
     }
 
@@ -216,8 +216,19 @@ public class StanSink extends Sink {
             byte[] data = ((ByteBuffer) payload).array();
             return data.toString();
         } else {
-            throw new StanSinkAdaptorRuntimeException("The message type is not supported by nats clients");
+            throw new NatsSinkAdaptorRuntimeException("The message type is not supported by nats clients");
         }
+    }
+
+    private void validateAndInitStanProperties(){
+        this.destination = optionHolder.validateAndGetOption(NatsConstants.DESTINATION);
+        this.clusterId = optionHolder.validateAndGetStaticValue(NatsConstants.CLUSTER_ID, NatsConstants
+                .DEFAULT_CLUSTER_ID);
+        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID);
+        this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
+                NatsConstants.DEFAULT_SERVER_URL);
+
+        NatsUtils.validateNatsUrl(natsUrl, streamDefinition.getId());
     }
 }
 
