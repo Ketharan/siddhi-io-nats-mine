@@ -25,7 +25,7 @@ public class NatsConstants {
     public static final String BOOTSTRAP_SERVERS = "bootstrap.servers";
     public static final String CLIENT_ID = "client.id";
     public static final String CLUSTER_ID = "cluster.id";
-    public static final String MESSAGE_SEQUENCE_NUMBER = "messageSequenceNumber";
     public static final String DEFAULT_SERVER_URL = "nats://localhost:4222";
     public static final String DEFAULT_CLUSTER_ID = "test-cluster";
+    public static final String QUEUE_GROUP_NAME = "queue.group.name";
 }

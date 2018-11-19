@@ -73,6 +73,13 @@ import java.util.concurrent.atomic.AtomicInteger;
                         optional = true,
                         defaultValue = NatsConstants.DEFAULT_CLUSTER_ID
                 ),
+                @Parameter(name = NatsConstants.QUEUE_GROUP_NAME,
+                        description = "This can be used when there is a requirement to share the load of a nats " +
+                                "subject. Clients belongs to the same queue group share the subscription load." ,
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = "None"
+                )
         },
         examples = {
                 @Example(description = "This example shows how to subscribe to a nats subject.",
@@ -95,6 +102,7 @@ public class NatsSource extends Source {
     private String clusterId;
     private String clientId;
     private String natsUrl;
+    private String queueGroupName;
     private Subscription subscription;
     private SiddhiAppContext siddhiAppContext;
     private NatsMessageProcessor natsMessageProcessor;
@@ -225,8 +233,14 @@ public class NatsSource extends Source {
 
     private void subscribe() {
         try {
-            subscription =  streamingConnection.subscribe(destination , natsMessageProcessor, new SubscriptionOptions
-                    .Builder().startAtSequence(lastSentSequenceNo.get()).build());
+            if (queueGroupName != null) {
+                subscription =  streamingConnection.subscribe(destination , queueGroupName, natsMessageProcessor, new
+                        SubscriptionOptions.Builder().startAtSequence(lastSentSequenceNo.get()).build());
+            } else {
+                subscription =  streamingConnection.subscribe(destination , natsMessageProcessor,
+                        new SubscriptionOptions.Builder().startAtSequence(lastSentSequenceNo.get()).build());
+            }
+
         } catch (IOException | InterruptedException | TimeoutException e) {
             log.error("Error occurred in initializing the Stan receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId());
@@ -242,6 +256,9 @@ public class NatsSource extends Source {
         this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID);
         this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
                 NatsConstants.DEFAULT_SERVER_URL);
+        if (optionHolder.isOptionExists(NatsConstants.QUEUE_GROUP_NAME)) {
+            this.queueGroupName = optionHolder.validateAndGetStaticValue(NatsConstants.QUEUE_GROUP_NAME);
+        }
         NatsUtils.validateNatsUrl(natsUrl, sourceEventListener.getStreamDefinition().getId());
     }
 }

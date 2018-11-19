@@ -18,6 +18,7 @@
 package org.wso2.extension.siddhi.io.nats.source;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import org.wso2.extension.siddhi.io.nats.utils.NatsClient;
 import org.wso2.extension.siddhi.io.nats.utils.ResultContainer;
@@ -29,7 +30,20 @@ import org.wso2.siddhi.core.stream.output.StreamCallback;
 import org.wso2.siddhi.core.util.EventPrinter;
 import org.wso2.siddhi.query.api.exception.SiddhiAppValidationException;
 
+import java.io.IOException;
+import java.sql.ClientInfoStatus;
+import java.util.Date;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class NatsSourceTestCase {
+    private String clientId;
+    private AtomicInteger eventCounter = new AtomicInteger(0);
+
+    @BeforeMethod
+    private void setUp(){
+        eventCounter.set(0);
+    }
 
     /**
      * Test the ability to subscripe to a nats topic based on sequence number.
@@ -132,6 +146,102 @@ public class NatsSourceTestCase {
         } catch (SiddhiAppCreationException e) {
             Assert.assertTrue(e.getMessage().contains("Invalid nats url"));
         }
+    }
+
+    /**
+     * The load of a subject should be shared between clients when more than one clients subscribes with a same queue
+     * group name
+     */
+    @Test
+    public void testQueueGroupSubscription() throws InterruptedException, IOException, TimeoutException {
+        clientId = "Test-Plan-4_" + new Date().getTime();
+        Thread.sleep(100);
+        AtomicInteger instream1Count = new AtomicInteger(0);
+        AtomicInteger instream2Count = new AtomicInteger(0);
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String inStreamDefinition1 = "@App:name('Test-plan4-1')"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test4', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "client.id='" + clientId +  "', "
+                + "cluster.id='test-cluster',"
+                + "queue.group.name = 'test-plan4'"
+                + ")"
+                + "define stream inputStream1 (name string, age int, country string);";
+
+        clientId = "Test-Plan-5_" + new Date().getTime();
+        String inStreamDefinition2 = "@App:name('Test-plan4-2')"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test4', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "client.id='" + clientId +  "', "
+                + "cluster.id='test-cluster',"
+                + "queue.group.name = 'test-plan4'"
+                + ")"
+                + "define stream inputStream2 (name string, age int, country string);";
+
+        clientId = "Test-Plan-4_" + new Date().getTime();
+        NatsClient natsClient = new NatsClient("test-cluster", clientId,
+                "nats://localhost:4222");
+        natsClient.connect();
+        natsClient.subsripeFromNow("nats-test4");
+
+        SiddhiAppRuntime inStream1RT = siddhiManager.createSiddhiAppRuntime(inStreamDefinition1);
+        SiddhiAppRuntime inStream2RT = siddhiManager.createSiddhiAppRuntime(inStreamDefinition2);
+
+        inStream1RT.addCallback("inputStream1", new StreamCallback() {
+            @Override
+            public void receive(Event[] events) {
+                EventPrinter.print(events);
+                for (Event event : events) {
+                    instream1Count.incrementAndGet();
+                }
+            }
+        });
+
+        inStream2RT.addCallback("inputStream2", new StreamCallback() {
+            @Override
+            public void receive(Event[] events) {
+                EventPrinter.print(events);
+                for (Event event : events) {
+                    instream2Count.incrementAndGet();
+                }
+            }
+        });
+
+        inStream1RT.start();
+        inStream2RT.start();
+
+        natsClient.publish("nats-test4","<events><event><name>JAMES</name><age>22</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>MIKE</name><age>30</age>"
+                + "<country>GERMANY</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>JHON</name><age>25</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>ARUN</name><age>52</age>"
+                + "<country>GERMANY</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>ALICE</name><age>32</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>BOP</name><age>28</age>"
+                + "<country>GERMANY</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>JAKE</name><age>52</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>RAHEEM</name><age>47</age>"
+                + "<country>GERMANY</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>JANE</name><age>36</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test4","<events><event><name>LAKE</name><age>19</age>"
+                + "<country>GERMANY</country></event></events>");
+
+        Thread.sleep(8000);
+
+        Assert.assertTrue(instream1Count.get() != 0);
+        Assert.assertTrue(instream2Count.get() != 0);
+        Assert.assertEquals(instream1Count.get() + instream2Count.get(), 10);
+
+        siddhiManager.shutdown();
+        natsClient.unsubscribe();
+
     }
 }
 
