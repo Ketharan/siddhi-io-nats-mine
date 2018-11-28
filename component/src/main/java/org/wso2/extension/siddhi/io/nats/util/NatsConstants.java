@@ -28,4 +28,5 @@ public class NatsConstants {
     public static final String DEFAULT_SERVER_URL = "nats://localhost:4222";
     public static final String DEFAULT_CLUSTER_ID = "test-cluster";
     public static final String QUEUE_GROUP_NAME = "queue.group.name";
+    public static final String DURABLE_NAME = "durable.name";
 }

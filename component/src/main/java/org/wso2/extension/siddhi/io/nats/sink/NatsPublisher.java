@@ -22,8 +22,7 @@ import org.apache.log4j.Logger;
 import org.wso2.extension.siddhi.io.nats.sink.exception.NatsSinkAdaptorRuntimeException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -49,16 +48,19 @@ public class NatsPublisher implements Runnable {
 
     public void run() {
         try {
-            streamingConnection.publish(subjectName, message.getBytes());
+            streamingConnection.publish(subjectName, message.getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
-            log.error("Error sending message to destination: " + subjectName, e);
+            log.error("Error sending message to destination: " + subjectName);
             throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
         } catch (InterruptedException e) {
-            log.error("Error sending message to destination: " + subjectName, e);
-            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
+            log.error("Error sending message to destination: " + subjectName +  ".The calling thread is "
+                            + "interrupted before the call completes.");
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName
+                    + ".The calling thread is interrupted before the call completes.", e);
         } catch (TimeoutException e) {
-            log.error("Error sending message to destination: " + subjectName, e);
-            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
+            log.error("Error sending message to destination: " + subjectName + ".Timeout occured while trying to ack.");
+            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName
+                    + ".Timeout occured while trying to ack.", e);
         }
     }
 
@@ -66,13 +68,6 @@ public class NatsPublisher implements Runnable {
         String message;
         if (payload instanceof String) {
             return  (String) payload;
-
-        } else if (payload instanceof Map) {
-            return payload.toString();
-
-        } else if (payload instanceof ByteBuffer) {
-            byte[] data = ((ByteBuffer) payload).array();
-            return data.toString();
         } else {
             throw new NatsSinkAdaptorRuntimeException("The message type is not supported by nats clients");
         }

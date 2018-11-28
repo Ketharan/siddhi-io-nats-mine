@@ -20,7 +20,6 @@ package org.wso2.extension.siddhi.io.nats.sink;
 import io.nats.streaming.StreamingConnection;
 import io.nats.streaming.StreamingConnectionFactory;
 import org.apache.log4j.Logger;
-import org.wso2.extension.siddhi.io.nats.sink.exception.NatsSinkAdaptorRuntimeException;
 import org.wso2.extension.siddhi.io.nats.util.NatsConstants;
 import org.wso2.extension.siddhi.io.nats.util.NatsUtils;
 import org.wso2.siddhi.annotation.Example;
@@ -37,8 +36,9 @@ import org.wso2.siddhi.core.util.transport.OptionHolder;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.Date;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -63,7 +63,9 @@ import java.util.concurrent.TimeoutException;
                 ),
                 @Parameter(name = NatsConstants.CLIENT_ID,
                         description = "The identifier of the client publishing/connecting to the nats broker",
-                        type = DataType.STRING
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = "None"
                 ),
                 @Parameter(name = NatsConstants.CLUSTER_ID,
                         description = "The identifier of the nats server/cluster.",
@@ -73,20 +75,27 @@ import java.util.concurrent.TimeoutException;
                 ),
         },
         examples = {
-                @Example(description = "This example shows how to publish to a nats subject.",
+                @Example(description = "This example shows how to publish to a nats subject with all supporting " +
+                        "configurations.",
                         syntax = "@sink(type='nats', @map(type='xml'), "
                                 + "destination='SP_NATS_OUTPUT_TEST', "
                                 + "bootstrap.servers='nats://localhost:4222',"
-                                + "client.id='nats_client'"
-                                + "server.id='test-cluster"
-                                + ")\n" +
-                                "define stream outputStream (name string, age int, country string);")
+                                + "client.id='nats_client',"
+                                + "server.id='test-cluster',"
+                                + ")\n"
+                                + "define stream outputStream (name string, age int, country string);"),
+
+                @Example(description = "This example shows how to publish to a nats subject with mandatory " +
+                        "configurations.",
+                        syntax = "@sink(type='nats', @map(type='xml'), "
+                                + "destination='SP_NATS_OUTPUT_TEST', "
+                                + ")\n"
+                                + "define stream outputStream (name string, age int, country string);")
         }
 )
 
 public class NatsSink extends Sink {
     private static final Logger log = Logger.getLogger(NatsSink.class);
-    private StreamingConnectionFactory streamingConnectionFactory;
     private StreamingConnection streamingConnection;
     private OptionHolder optionHolder;
     private StreamDefinition streamDefinition;
@@ -94,6 +103,7 @@ public class NatsSink extends Sink {
     private String clusterId;
     private String clientId;
     private String natsUrl;
+    private ExecutorService executorService;
 
     /**
      * Returns the list of classes which this sink can consume.
@@ -101,7 +111,7 @@ public class NatsSink extends Sink {
      */
     @Override
     public Class[] getSupportedInputEventClasses() {
-        return new Class[]{String.class, Map.class, ByteBuffer.class};
+        return new Class[]{String.class};
     }
 
     /**
@@ -109,7 +119,7 @@ public class NatsSink extends Sink {
      */
     @Override
     public String[] getSupportedDynamicOptions() {
-            return new String[0];
+            return new String[]{NatsConstants.DESTINATION};
     }
 
     /**
@@ -126,6 +136,7 @@ public class NatsSink extends Sink {
             SiddhiAppContext siddhiAppContext) {
         this.optionHolder = optionHolder;
         this.streamDefinition = streamDefinition;
+        this.executorService = siddhiAppContext.getExecutorService();
         validateAndInitStanProperties();
     }
 
@@ -133,23 +144,10 @@ public class NatsSink extends Sink {
      * Publish the given event to the nats server.
      * @param payload        payload of the event based on the supported event class exported by the extensions
      * @param dynamicOptions holds the dynamic options of this sink and Use this object to obtain dynamic options.
-     * @throws ConnectionUnavailableException if end point is unavailable the ConnectionUnavailableException thrown
-     *                                        such that the  system will take care retrying for connection
      */
     @Override
-    public void publish(Object payload, DynamicOptions dynamicOptions) throws ConnectionUnavailableException {
-        try {
-            streamingConnection.publish(destination.getValue(dynamicOptions), handleMessage(payload).getBytes());
-        } catch (IOException e) {
-            log.error("Error sending message to destination: " + destination, e);
-            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
-        } catch (InterruptedException e) {
-            log.error("Error sending message to destination: " + destination, e);
-            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
-        } catch (TimeoutException e) {
-            log.error("Error sending message to destination: " + destination, e);
-            throw new NatsSinkAdaptorRuntimeException("Error sending message to destination:" + destination, e);
-        }
+    public void publish(Object payload, DynamicOptions dynamicOptions) {
+        executorService.execute(new NatsPublisher(destination.getValue(dynamicOptions), streamingConnection, payload));
     }
 
     /**
@@ -159,18 +157,24 @@ public class NatsSink extends Sink {
      */
     @Override
     public void connect() throws ConnectionUnavailableException {
-        streamingConnectionFactory = new StreamingConnectionFactory(this.clusterId, this.clientId);
+        StreamingConnectionFactory streamingConnectionFactory = new StreamingConnectionFactory(this.clusterId,
+                this.clientId);
         streamingConnectionFactory.setNatsUrl(this.natsUrl);
+
         try {
+
+            log.info(new Date().getTime() + " nats stream connection---------------");
             streamingConnection =  streamingConnectionFactory.createConnection();
+            log.info(new Date().getTime() + " nats stream connection done-------------------");
         } catch (IOException e) {
             log.error("Error while connecting to nats server at destination: " + destination);
-            throw new ConnectionUnavailableException("Error while connecting to Stan server at destination: "
+            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
                     + destination, e);
         } catch (InterruptedException e) {
-            log.error("Error while connecting to nats server at destination: " + destination);
-            throw new ConnectionUnavailableException("Error while connecting to Stan server at destination: "
-                    + destination, e);
+            log.error("Error while connecting to nats server at destination: " + destination + ".The calling thread "
+                    + "is interrupted before the connection can be established.");
+            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
+                    + destination + " .The calling thread is interrupted before the connection can be established.", e);
         }
     }
 
@@ -204,27 +208,11 @@ public class NatsSink extends Sink {
 
     }
 
-    private String handleMessage(Object payload) {
-        String message;
-        if (payload instanceof String) {
-            return  (String) payload;
-
-        } else if (payload instanceof Map) {
-            return payload.toString();
-
-        } else if (payload instanceof ByteBuffer) {
-            byte[] data = ((ByteBuffer) payload).array();
-            return data.toString();
-        } else {
-            throw new NatsSinkAdaptorRuntimeException("The message type is not supported by nats clients");
-        }
-    }
-
-    private void validateAndInitStanProperties(){
+    private void validateAndInitStanProperties() {
         this.destination = optionHolder.validateAndGetOption(NatsConstants.DESTINATION);
         this.clusterId = optionHolder.validateAndGetStaticValue(NatsConstants.CLUSTER_ID, NatsConstants
                 .DEFAULT_CLUSTER_ID);
-        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID);
+        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID, NatsUtils.createClientId());
         this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
                 NatsConstants.DEFAULT_SERVER_URL);
 

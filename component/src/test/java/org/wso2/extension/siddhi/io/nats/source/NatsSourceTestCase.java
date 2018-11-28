@@ -17,25 +17,32 @@
  */
 package org.wso2.extension.siddhi.io.nats.source;
 
+import org.apache.log4j.Logger;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import org.wso2.extension.siddhi.io.nats.utils.NatsClient;
 import org.wso2.extension.siddhi.io.nats.utils.ResultContainer;
+import org.wso2.extension.siddhi.io.nats.utils.UnitTestAppender;
+import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
 import org.wso2.siddhi.core.SiddhiAppRuntime;
 import org.wso2.siddhi.core.SiddhiManager;
 import org.wso2.siddhi.core.event.Event;
 import org.wso2.siddhi.core.exception.SiddhiAppCreationException;
+import org.wso2.siddhi.core.stream.input.source.Source;
 import org.wso2.siddhi.core.stream.output.StreamCallback;
 import org.wso2.siddhi.core.util.EventPrinter;
 import org.wso2.siddhi.query.api.exception.SiddhiAppValidationException;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NatsSourceTestCase {
+    private static Logger log = Logger.getLogger(NatsSourceTestCase.class);
     private String clientId;
     private AtomicInteger eventCounter = new AtomicInteger(0);
 
@@ -49,7 +56,7 @@ public class NatsSourceTestCase {
      * @throws InterruptedException
      */
     @Test
-    public void testNatsSequenceSubscribtion() throws InterruptedException {
+    public void testNatsSequenceSubscribtion() throws InterruptedException, TimeoutException, IOException {
         ResultContainer resultContainer = new ResultContainer(2,3);
         NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test1",
                 "nats://localhost:4222");
@@ -89,6 +96,8 @@ public class NatsSourceTestCase {
 
         Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
         Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+        siddhiManager.shutdown();
+        natsClient.close();
     }
 
     /**
@@ -117,6 +126,7 @@ public class NatsSourceTestCase {
             Assert.assertTrue(e.getMessage().contains("'destination' 'static' option is not defined in the "
                     + "configuration of source:nats"));
         }
+        siddhiManager.shutdown();
     }
 
     /**
@@ -144,6 +154,7 @@ public class NatsSourceTestCase {
         } catch (SiddhiAppCreationException e) {
             Assert.assertTrue(e.getMessage().contains("Invalid nats url"));
         }
+        siddhiManager.shutdown();
     }
 
     /**
@@ -237,6 +248,7 @@ public class NatsSourceTestCase {
 
         siddhiManager.shutdown();
         natsClient.unsubscribe();
+        natsClient.close();
     }
 
     /**
@@ -244,7 +256,7 @@ public class NatsSourceTestCase {
      * be used.
      */
     @Test()
-    public void testOptionalClientId() throws InterruptedException {
+    public void testOptionalClientId() throws InterruptedException, TimeoutException, IOException {
         ResultContainer resultContainer = new ResultContainer(2,3);
         NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test-5",
                 "nats://localhost:4222");
@@ -283,6 +295,8 @@ public class NatsSourceTestCase {
 
         Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
         Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+        siddhiManager.shutdown();
+        natsClient.close();
     }
 
     /**
@@ -290,7 +304,7 @@ public class NatsSourceTestCase {
      * the stream
      */
     @Test
-    public void testMultipleSourceSingleStream() throws InterruptedException {
+    public void testMultipleSourceSingleStream() throws InterruptedException, TimeoutException, IOException {
         ResultContainer resultContainer = new ResultContainer(4,3);
         NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test6",
                 "nats://localhost:4222");
@@ -342,8 +356,175 @@ public class NatsSourceTestCase {
         Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
         Assert.assertTrue(resultContainer.assertMessageContent("JHON"));
         Assert.assertTrue(resultContainer.assertMessageContent("SMITH"));
+        siddhiManager.shutdown();
+        natsClient.close();
     }
 
+    /**
+     * Evaluate the subject subscription configuration with the source pause and resume.
+     */
+    @Test
+    public void testNatsSourcePause() throws InterruptedException, TimeoutException, IOException {
+        ResultContainer resultContainer = new ResultContainer(2,3);
+        NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test7",
+                "nats://localhost:4222");
+        natsClient.connect();
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String siddhiApp = "@App:name(\"Test-plan7\")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test7', "
+                + "client.id='nats-source-test7-siddhi', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);"
+                + "@info(name = 'query1') "
+                + "from inputStream "
+                + "select *  "
+                + "insert into outputStream;";
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(siddhiApp);
+        executionPlanRuntime.addCallback("inputStream", new StreamCallback() {
+            @Override
+            public void receive(Event[] events) {
+                EventPrinter.print(events);
+                for (Event event : events) {
+                    resultContainer.eventReceived(event.toString());
+                }
+            }
+        });
+
+        Collection<List<Source>> sources = executionPlanRuntime.getSources();
+        executionPlanRuntime.start();
+        sources.forEach(e -> e.forEach(Source::pause));
+
+        Thread.sleep(1000);
+
+        natsClient.publish("nats-test7","<events><event><name>JAMES</name><age>22</age>"
+                + "<country>US</country></event></events>");
+        sources.forEach(e -> e.forEach(Source::resume));
+
+        natsClient.publish("nats-test7","<events><event><name>MIKE</name><age>22</age>"
+                + "<country>GERMANY</country></event></events>");
+        Thread.sleep(1000);
+
+        Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+        siddhiManager.shutdown();
+        natsClient.close();
+    }
+
+    /**
+     * Test subscription to a nats topic based on sequence number with mandatory configurations only.
+     * @throws InterruptedException
+     */
+    @Test
+    public void testNatsSequenceSubscribtionWithMandatoryConfigs() throws InterruptedException, IOException,
+            TimeoutException {
+        ResultContainer resultContainer = new ResultContainer(2,3);
+        NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test8",
+                "nats://localhost:4222");
+        natsClient.connect();
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String siddhiApp = "@App:name(\"Test-plan8\")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test8' "
+                + ")"
+                + "define stream inputStream (name string, age int, country string);"
+                + "@info(name = 'query1') "
+                + "from inputStream "
+                + "select *  "
+                + "insert into outputStream;";
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(siddhiApp);
+        executionPlanRuntime.addCallback("inputStream", new StreamCallback() {
+            @Override
+            public void receive(Event[] events) {
+                EventPrinter.print(events);
+                for (Event event : events) {
+                    resultContainer.eventReceived(event.toString());
+                }
+            }
+        });
+        executionPlanRuntime.start();
+        Thread.sleep(1000);
+
+        natsClient.publish("nats-test8","<events><event><name>JAMES</name><age>22</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test8","<events><event><name>MIKE</name><age>22</age>"
+                + "<country>GERMANY</country></event></events>");
+        Thread.sleep(1000);
+
+        Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+        siddhiManager.shutdown();
+        natsClient.close();
+    }
+
+    /**
+     * If invalid cluster name is provided in nats source configurations then {@link ConnectionUnavailableException}
+     * should have been thrown. Here incorrect cluster id provided hence the connection will fail.
+     */
+    @Test
+    public void testInvalidClusterName() throws InterruptedException {
+        log.info("Test with connection unavailable exception");
+        UnitTestAppender appender = new UnitTestAppender();
+        log.addAppender(appender);
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String siddhiApp = "@App:name(\"Test-plan9\")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test9', "
+                + "client.id='nats-source-test9-siddhi', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "cluster.id='nats-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);"
+                + "@info(name = 'query1') "
+                + "from inputStream "
+                + "select *  "
+                + "insert into outputStream;";
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(siddhiApp);
+        executionPlanRuntime.start();
+        Thread.sleep(1000);
+
+        Assert.assertTrue(appender.getMessages().contains("Error while connecting to nats server at destination: "
+                + "nats-test9"));
+        siddhiManager.shutdown();
+    }
+
+    /**
+     * If incorrect bootstrap server url is provided in nats source configurations then
+     * {@link ConnectionUnavailableException} should have been thrown. Here incorrect cluster url is provided hence the
+     * connection will fail.
+     */
+    @Test
+    public void testIncorrectNatsServerUrl() throws InterruptedException {
+        log.info("Test with connection unavailable exception");
+        UnitTestAppender appender = new UnitTestAppender();
+        log.addAppender(appender);
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String siddhiApp = "@App:name(\"Test-plan10\")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test10', "
+                + "client.id='nats-source-test10-siddhi', "
+                + "bootstrap.servers='nats://localhost:5223', "
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);"
+                + "@info(name = 'query1') "
+                + "from inputStream "
+                + "select *  "
+                + "insert into outputStream;";
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(siddhiApp);
+        executionPlanRuntime.start();
+        Thread.sleep(1000);
+
+        Assert.assertTrue(appender.getMessages().contains("Error while connecting to nats server at destination: "
+                + "nats-test10"));
+        siddhiManager.shutdown();
+    }
 
 }
 

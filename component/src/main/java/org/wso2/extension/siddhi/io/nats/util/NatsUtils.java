@@ -21,6 +21,8 @@ package org.wso2.extension.siddhi.io.nats.util;
 
 import org.wso2.extension.siddhi.io.nats.exception.InvalidNatsPropertiesException;
 
+import java.util.Date;
+import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,5 +39,9 @@ public class NatsUtils {
             throw new InvalidNatsPropertiesException("Invalid nats url: " + natsServerUrl + " received for stream: "
                     + siddhiStreamName + ". Expected url format: nats://<host>:<port>");
         }
+    }
+
+    public static String createClientId() {
+        return new Date().getTime() + "_" + new Random().nextInt(99999) + "_" + new Random().nextInt(99999);
     }
 }

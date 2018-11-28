@@ -35,7 +35,6 @@ import org.wso2.siddhi.core.stream.input.source.Source;
 import org.wso2.siddhi.core.stream.input.source.SourceEventListener;
 import org.wso2.siddhi.core.util.config.ConfigReader;
 import org.wso2.siddhi.core.util.transport.OptionHolder;
-import org.wso2.siddhi.query.api.definition.StreamDefinition;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -65,7 +64,9 @@ import java.util.concurrent.atomic.AtomicInteger;
                 ),
                 @Parameter(name = NatsConstants.CLIENT_ID,
                         description = "The identifier of the client subscribing/connecting to the nats broker",
-                        type = DataType.STRING
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = "None"
                 ),
                 @Parameter(name = NatsConstants.CLUSTER_ID,
                         description = "The identifier of the nats server/cluster.",
@@ -79,17 +80,36 @@ import java.util.concurrent.atomic.AtomicInteger;
                         type = DataType.STRING,
                         optional = true,
                         defaultValue = "None"
-                )
+                ),
+                @Parameter(name = NatsConstants.DURABLE_NAME,
+                        description = "This can be used to subscribe to a subject from the last acknowledged message " +
+                                "when a client or connection failure happens. The client can be uniquely identified " +
+                                "using the tuple (" + NatsConstants.CLIENT_ID + ", " + NatsConstants.DURABLE_NAME +
+                                ").",
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = "None"
+                ),
         },
         examples = {
-                @Example(description = "This example shows how to subscribe to a nats subject.",
+                @Example(description = "This example shows how to subscribe to a nats subject with all supporting " +
+                        "configurations.",
                         syntax = "@source(type='nats', @map(type='text'), "
                                 + "destination='SP_NATS_INPUT_TEST', "
                                 + "bootstrap.servers='nats://localhost:4222',"
-                                + "client.id='stan_client'"
-                                + "server.id='test-cluster"
-                                + ")\n" +
-                                "define stream inputStream (name string, age int, country string);")
+                                + "client.id='nats_client',"
+                                + "server.id='test-cluster',"
+                                + "queue.group.name = 'group_1',"
+                                + "durable.name = 'nats-durable'"
+                                + ")\n"
+                                + "define stream inputStream (name string, age int, country string);"),
+
+                @Example(description = "This example shows how to subscribe to a nats subject with mandatory " +
+                        "configurations.",
+                        syntax = "@source(type='nats', @map(type='text'), "
+                                + "destination='SP_NATS_INPUT_TEST', "
+                                + ")\n"
+                                + "define stream inputStream (name string, age int, country string);")
         }
 )
 
@@ -103,6 +123,7 @@ public class NatsSource extends Source {
     private String clientId;
     private String natsUrl;
     private String queueGroupName;
+    private String durableName;
     private Subscription subscription;
     private SiddhiAppContext siddhiAppContext;
     private NatsMessageProcessor natsMessageProcessor;
@@ -153,10 +174,15 @@ public class NatsSource extends Source {
                     this.clientId);
             streamingConnectionFactory.setNatsUrl(this.natsUrl);
             streamingConnection =  streamingConnectionFactory.createConnection();
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             log.error("Error while connecting to nats server at destination: " + destination);
-            throw new ConnectionUnavailableException("Error while connecting to Stan server at destination: "
+            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
                     + destination, e);
+        } catch (InterruptedException e) {
+            log.error("Error while connecting to nats server at destination: " + destination + ".The calling thread "
+                    + "is interrupted before the connection can be established.");
+            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
+                    + destination + " .The calling thread is interrupted before the connection can be established.", e);
         }
         subscribe();
     }
@@ -168,9 +194,6 @@ public class NatsSource extends Source {
     public void disconnect() {
         lastSentSequenceNo.set(natsMessageProcessor.getMessageSequenceTracker().get());
         try {
-            if (subscription != null) {
-                subscription.unsubscribe();
-            }
             if (subscription != null) {
                 subscription.close();
             }
@@ -196,7 +219,7 @@ public class NatsSource extends Source {
      */
     @Override
     public void pause() {
-
+        natsMessageProcessor.pause();
     }
 
     /**
@@ -204,7 +227,7 @@ public class NatsSource extends Source {
      */
     @Override
     public void resume() {
-
+        natsMessageProcessor.resume();
     }
 
     /**
@@ -232,20 +255,39 @@ public class NatsSource extends Source {
      }
 
     private void subscribe() {
+        SubscriptionOptions.Builder subscriptionOptionsBuilder = new SubscriptionOptions.Builder();
+        subscriptionOptionsBuilder.startAtSequence(lastSentSequenceNo.get());
         try {
+            if (durableName != null) {
+                subscriptionOptionsBuilder.durableName(durableName);
+            }
             if (queueGroupName != null) {
-                subscription =  streamingConnection.subscribe(destination , queueGroupName, natsMessageProcessor, new
-                        SubscriptionOptions.Builder().startAtSequence(lastSentSequenceNo.get()).build());
+                subscription =  streamingConnection.subscribe(destination , queueGroupName, natsMessageProcessor,
+                        subscriptionOptionsBuilder.build());
             } else {
                 subscription =  streamingConnection.subscribe(destination , natsMessageProcessor,
-                        new SubscriptionOptions.Builder().startAtSequence(lastSentSequenceNo.get()).build());
+                        subscriptionOptionsBuilder.build());
             }
 
-        } catch (IOException | InterruptedException | TimeoutException e) {
-            log.error("Error occurred in initializing the Stan receiver for stream: "
+        } catch (IOException e) {
+            log.error("Error occurred in initializing the nats receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId());
-            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the Stan receiver for stream: "
+            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the nats receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId(), e);
+        } catch (InterruptedException e) {
+            log.error("Error occurred in initializing the nats receiver for stream: " + sourceEventListener
+                    .getStreamDefinition().getId() + ".The calling thread is interrupted before the connection "
+                    + "completes.");
+            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the nats receiver for stream: "
+                    + sourceEventListener.getStreamDefinition().getId() + ".The calling thread is interrupted before "
+                    + "the connection completes.", e);
+        } catch (TimeoutException e) {
+            log.error("Error occurred in initializing the nats receiver for stream: " + sourceEventListener
+                    .getStreamDefinition().getId() + ".The server request cannot be completed within the subscription"
+                    + " timeout.");
+            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the nats receiver for stream: "
+                    + sourceEventListener.getStreamDefinition().getId() + ".The server request cannot be completed "
+                    + "within the subscription timeout.", e);
         }
     }
 
@@ -253,9 +295,13 @@ public class NatsSource extends Source {
         this.destination = optionHolder.validateAndGetStaticValue(NatsConstants.DESTINATION);
         this.clusterId = optionHolder.validateAndGetStaticValue(NatsConstants.CLUSTER_ID,
                 NatsConstants.DEFAULT_CLUSTER_ID);
-        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID);
+        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID, NatsUtils.createClientId());
         this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
                 NatsConstants.DEFAULT_SERVER_URL);
+        if (optionHolder.isOptionExists(NatsConstants.DURABLE_NAME)) {
+            this.durableName = optionHolder.validateAndGetStaticValue(NatsConstants.DURABLE_NAME);
+        }
+
         if (optionHolder.isOptionExists(NatsConstants.QUEUE_GROUP_NAME)) {
             this.queueGroupName = optionHolder.validateAndGetStaticValue(NatsConstants.QUEUE_GROUP_NAME);
         }

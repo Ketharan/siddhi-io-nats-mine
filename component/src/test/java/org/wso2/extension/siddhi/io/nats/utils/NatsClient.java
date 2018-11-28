@@ -23,7 +23,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Date;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 
@@ -56,87 +59,57 @@ public class NatsClient {
         streamingConnectionFactory.setNatsUrl(this.natsUrl);
         try {
             streamingConnection =  streamingConnectionFactory.createConnection();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
     }
 
-    public void publish(String subjectName, String message){
+    public void publish(String subjectName, String message) {
         try {
-            streamingConnection.publish(subjectName,message.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (TimeoutException e) {
-            e.printStackTrace();
+            streamingConnection.publish(subjectName, message.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException | InterruptedException | TimeoutException e) {
+            log.error(e.getMessage());
         }
     }
 
     public void subsripeFromNow(String subject) throws InterruptedException, TimeoutException, IOException {
-        subscription = streamingConnection.subscribe(subject, new MessageHandler() {
-            public void onMessage(Message m) {
-                resultContainer.eventReceived(new String(m.getData()));
-            }
-        }, new SubscriptionOptions.Builder().startAtTime(Instant.now()).build());
+        subscription = streamingConnection.subscribe(subject, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)),
+                new SubscriptionOptions.Builder().startAtTime(Instant.now()).build());
     }
 
     public void subscribe(String subject) throws InterruptedException, IOException, TimeoutException {
-        subscription =  streamingConnection.subscribe( subject, new MessageHandler() {
-            public void onMessage(Message m) {
-                System.out.printf("Client : " +  clientId +  " Received a message: %s\n", new
-                        String(m.getData()));
-                doneSignal.countDown();
-            }
-        }, new SubscriptionOptions.Builder().deliverAllAvailable().build());
-
-        doneSignal.await();
+        subscription =  streamingConnection.subscribe(subject, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)),
+                new SubscriptionOptions.Builder().deliverAllAvailable().build());
     }
 
-    public void subscribeFromLastPublished(String subject) throws InterruptedException, IOException, TimeoutException{
-        subscription = streamingConnection.subscribe(subject, new MessageHandler() {
-            public void onMessage(Message m) {
-                System.out.printf("Client : " +  clientId +  " Received a message: %s\n", new
-                        String(m.getData()));
-                doneSignal.countDown();
-            }
-        }, new SubscriptionOptions.Builder().startWithLastReceived().build());
+    public void subscribeFromLastPublished(String subject) throws InterruptedException, IOException, TimeoutException {
+        subscription = streamingConnection.subscribe(subject, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)),
+                new SubscriptionOptions.Builder().startWithLastReceived().build());
     }
 
     public void subscribeFromGivenSequence(String subject, int sequence) throws InterruptedException, IOException,
             TimeoutException {
-        subscription = streamingConnection.subscribe(subject, new MessageHandler() {
-            public void onMessage(Message m) {
-                System.out.printf("Client : " +  clientId +  " Received a message: %s\n", new
-                        String(m.getData()));
-                doneSignal.countDown();
-            }
-        }, new SubscriptionOptions.Builder().startAtSequence(sequence).build());
+        subscription = streamingConnection.subscribe(subject, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)),
+                new SubscriptionOptions.Builder().startAtSequence(sequence).build());
     }
 
     public void subscrbeFromGivenTime(String subject,  Instant instant) throws InterruptedException, IOException,
             TimeoutException {
-        subscription = streamingConnection.subscribe(subject, new MessageHandler() {
-            public void onMessage(Message m) {
-                System.out.printf("Client : " +  clientId +  " Received a message: %s\n", new
-                        String(m.getData()));
-                doneSignal.countDown();
-            }
-        }, new SubscriptionOptions.Builder().startAtTime(instant).build());
+        subscription = streamingConnection.subscribe(subject, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)),
+                new SubscriptionOptions.Builder().startAtTime(instant).build());
 
     }
 
     public void subscribeDurable(String subject, String durableName) throws InterruptedException, IOException,
             TimeoutException {
-        subscription = streamingConnection.subscribe(subject, new MessageHandler() {
-            public void onMessage(Message m) {
-                System.out.printf("Client : " +  clientId +  " Received a message: %s\n", new
-                        String(m.getData()));
-                doneSignal.countDown();
-            }
-        }, new SubscriptionOptions.Builder().durableName(durableName).build());
+        subscription = streamingConnection.subscribe(subject, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)),
+                new SubscriptionOptions.Builder().durableName(durableName).build());
     }
 
     public void unsubscribe() throws IOException {
@@ -145,12 +118,16 @@ public class NatsClient {
 
     public void subscribeWithQueueGroupFromSequence(String subject, String queueGroup, int sequence)
             throws InterruptedException, TimeoutException, IOException {
-        subscription = streamingConnection.subscribe(subject, queueGroup, new MessageHandler() {
-            public void onMessage(Message m) {
-                System.out.printf("Client : " +  clientId +  " Received a message: %s\n", new
-                        String(m.getData()));
-                doneSignal.countDown();
-            }
-        }, new SubscriptionOptions.Builder().startAtSequence(sequence).build());
+        subscription = streamingConnection.subscribe(subject, queueGroup, (Message m) ->
+                        resultContainer.eventReceived(new String(m.getData(), StandardCharsets.UTF_8)) ,
+                new SubscriptionOptions.Builder().startAtSequence(sequence).build());
+    }
+
+    private String createClientId() {
+        return new Date().getTime() + "_" + new Random().nextInt(99999) + "_" + new Random().nextInt(99999);
+    }
+
+    public void close() throws InterruptedException, TimeoutException, IOException {
+        streamingConnection.close();
     }
 }
