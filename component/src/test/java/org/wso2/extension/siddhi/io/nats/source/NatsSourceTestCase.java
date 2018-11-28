@@ -31,7 +31,6 @@ import org.wso2.siddhi.core.util.EventPrinter;
 import org.wso2.siddhi.query.api.exception.SiddhiAppValidationException;
 
 import java.io.IOException;
-import java.sql.ClientInfoStatus;
 import java.util.Date;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,17 +50,16 @@ public class NatsSourceTestCase {
      */
     @Test
     public void testNatsSequenceSubscribtion() throws InterruptedException {
-        // TODO: 11/16/18 create random subject name
         ResultContainer resultContainer = new ResultContainer(2,3);
         NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test1",
-                "natss://localhost:4222");
+                "nats://localhost:4222");
         natsClient.connect();
         SiddhiManager siddhiManager = new SiddhiManager();
         String siddhiApp = "@App:name(\"Test-plan1\")"
                 + "@source(type='nats', @map(type='xml'), "
                 + "destination='nats-test1', "
-                + "bootstrap.servers='nats://localhost:4222', "
                 + "client.id='nats-source-test1-siddhi', "
+                + "bootstrap.servers='nats://localhost:4222', "
                 + "cluster.id='test-cluster'"
                 + ")"
                 + "define stream inputStream (name string, age int, country string);"
@@ -208,7 +206,6 @@ public class NatsSourceTestCase {
                 }
             }
         });
-
         inStream1RT.start();
         inStream2RT.start();
 
@@ -232,17 +229,122 @@ public class NatsSourceTestCase {
                 + "<country>US</country></event></events>");
         natsClient.publish("nats-test4","<events><event><name>LAKE</name><age>19</age>"
                 + "<country>GERMANY</country></event></events>");
-
         Thread.sleep(8000);
 
-        Assert.assertTrue(instream1Count.get() != 0);
-        Assert.assertTrue(instream2Count.get() != 0);
+        Assert.assertTrue(instream1Count.get() != 0, "Total events should be shared between clients");
+        Assert.assertTrue(instream2Count.get() != 0, "Total events should be shared between clients");
         Assert.assertEquals(instream1Count.get() + instream2Count.get(), 10);
 
         siddhiManager.shutdown();
         natsClient.unsubscribe();
-
     }
+
+    /**
+     * if the client.id is not given by the user in the extension headers, then a randomly generated client id will
+     * be used.
+     */
+    @Test()
+    public void testOptionalClientId() throws InterruptedException {
+        ResultContainer resultContainer = new ResultContainer(2,3);
+        NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test-5",
+                "nats://localhost:4222");
+        natsClient.connect();
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String siddhiApp = "@App:name(\"Test-plan5\")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test1', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);"
+                + "@info(name = 'query1') "
+                + "from inputStream "
+                + "select *  "
+                + "insert into outputStream;";
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(siddhiApp);
+        executionPlanRuntime.addCallback("inputStream", new StreamCallback() {
+            @Override
+            public void receive(Event[] events) {
+                EventPrinter.print(events);
+                for (Event event : events) {
+                    resultContainer.eventReceived(event.toString());
+                }
+            }
+        });
+        executionPlanRuntime.start();
+        Thread.sleep(1000);
+
+        natsClient.publish("nats-test1","<events><event><name>JAMES</name><age>22</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test1","<events><event><name>MIKE</name><age>22</age>"
+                + "<country>GERMANY</country></event></events>");
+        Thread.sleep(1000);
+
+        Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+    }
+
+    /**
+     * If a single stream has multiple source annotations then all the events from those subjects should be passed to
+     * the stream
+     */
+    @Test
+    public void testMultipleSourceSingleStream() throws InterruptedException {
+        ResultContainer resultContainer = new ResultContainer(4,3);
+        NatsClient natsClient = new NatsClient("test-cluster", "nats-source-test6",
+                "nats://localhost:4222");
+        natsClient.connect();
+        SiddhiManager siddhiManager = new SiddhiManager();
+        String siddhiApp = "@App:name(\"Test-plan6\")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test6-sub1', "
+                + "client.id='nats-source-test6-siddhi-1', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "@source(type='nats', @map(type='xml'), "
+                + "destination='nats-test6-sub2', "
+                + "client.id='nats-source-test6-siddhi-2', "
+                + "bootstrap.servers='nats://localhost:4222', "
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);"
+                + "@info(name = 'query1') "
+                + "from inputStream "
+                + "select *  "
+                + "insert into outputStream;";
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(siddhiApp);
+        executionPlanRuntime.addCallback("inputStream", new StreamCallback() {
+            @Override
+            public void receive(Event[] events) {
+                EventPrinter.print(events);
+                for (Event event : events) {
+                    resultContainer.eventReceived(event.toString());
+                }
+            }
+        });
+        executionPlanRuntime.start();
+        Thread.sleep(1000);
+
+        natsClient.publish("nats-test6-sub1","<events><event><name>JAMES</name><age>22</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test6-sub1","<events><event><name>MIKE</name><age>22</age>"
+                + "<country>GERMANY</country></event></events>");
+        natsClient.publish("nats-test6-sub2","<events><event><name>JHON</name><age>22</age>"
+                + "<country>US</country></event></events>");
+        natsClient.publish("nats-test6-sub2","<events><event><name>SMITH</name><age>22</age>"
+                + "<country>GERMANY</country></event></events>");
+        Thread.sleep(1000);
+
+        Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+        Assert.assertTrue(resultContainer.assertMessageContent("JHON"));
+        Assert.assertTrue(resultContainer.assertMessageContent("SMITH"));
+    }
+
+
 }
 
 

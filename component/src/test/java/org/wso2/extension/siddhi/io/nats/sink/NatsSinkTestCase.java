@@ -45,8 +45,8 @@ public class NatsSinkTestCase {
         String inStreamDefinition = "@App:name('Test-plan1')\n"
                 + "@sink(type='nats', @map(type='xml'), "
                 + "destination='nats-test1', "
+                + "client.id='test-plan1-siddhi',"
                 + "bootstrap.servers='nats://localhost:4222',"
-                + "client.id='stan_client',"
                 + "cluster.id='test-cluster'"
                 + ")"
                 + "define stream inputStream (name string, age int, country string);";
@@ -111,6 +111,90 @@ public class NatsSinkTestCase {
         } catch (SiddhiAppCreationException e) {
             Assert.assertTrue(e.getMessage().contains("Invalid nats url"));
         }
+    }
+
+    /**
+     * if the client.id is not given by the user in the extension headers, then a randomly generated client id will
+     * be used.
+     */
+    @Test()
+    public void testOptionalClientId() throws InterruptedException, TimeoutException, IOException {
+        ResultContainer resultContainer = new ResultContainer(2,3);
+        NatsClient natsClient = new NatsClient("test-cluster","test-plan4","nats://localhost:4222"
+                , resultContainer);
+        natsClient.connect();
+        SiddhiManager siddhiManager = new SiddhiManager();
+
+        String inStreamDefinition = "@App:name('Test-plan1')\n"
+                + "@sink(type='nats', @map(type='xml'), "
+                + "destination='test-plan4', "
+                + "bootstrap.servers='nats://localhost:4222',"
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);";
+
+        natsClient.subsripeFromNow("test-plan4");
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.
+                createSiddhiAppRuntime(inStreamDefinition);
+        InputHandler inputStream = executionPlanRuntime.getInputHandler("inputStream");
+        executionPlanRuntime.start();
+
+        inputStream.send(new Object[]{"JAMES", 23, "USA"});
+        inputStream.send(new Object[]{"MIKE", 23, "Germany"});
+        Thread.sleep(1000);
+        Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+
+        siddhiManager.shutdown();
+    }
+
+    /**
+     * If a single stream has multiple sink annotations then all the events from the stream should be passed to
+     * the given subjects.
+     */
+    @Test
+    public void testMultipleSinkSingleStream() throws InterruptedException, TimeoutException, IOException {
+        ResultContainer resultContainer = new ResultContainer(8,3);
+        NatsClient natsClient = new NatsClient("test-cluster","nats-test-plan5","nats://localhost:4222"
+                , resultContainer);
+        natsClient.connect();
+        SiddhiManager siddhiManager = new SiddhiManager();
+
+        String inStreamDefinition = "@App:name('Test-plan5')\n"
+                + "@sink(type='nats', @map(type='xml'), "
+                + "destination='nats-source-test-siddhi-1', "
+                + "client.id='test-plan5-siddhi-sink-pub1',"
+                + "bootstrap.servers='nats://localhost:4222',"
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "@sink(type='nats', @map(type='xml'), "
+                + "destination='nats-source-test-siddhi-2', "
+                + "client.id='test-plan5-siddhi-sink-pub2',"
+                + "bootstrap.servers='nats://localhost:4222',"
+                + "cluster.id='test-cluster'"
+                + ")"
+                + "define stream inputStream (name string, age int, country string);";
+
+        natsClient.subsripeFromNow("nats-source-test-siddhi-1");
+        natsClient.subsripeFromNow("nats-source-test-siddhi-2");
+
+        SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(inStreamDefinition);
+        InputHandler inputStream = executionPlanRuntime.getInputHandler("inputStream");
+        executionPlanRuntime.start();
+
+        inputStream.send(new Object[]{"JAMES", 23, "USA"});
+        inputStream.send(new Object[]{"MIKE", 23, "Germany"});
+        inputStream.send(new Object[]{"SMITH", 23, "RSA"});
+        inputStream.send(new Object[]{"MILLER", 23, "WI"});
+
+        Thread.sleep(1000);
+
+        Assert.assertTrue(resultContainer.assertMessageContent("JAMES"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MIKE"));
+        Assert.assertTrue(resultContainer.assertMessageContent("SMITH"));
+        Assert.assertTrue(resultContainer.assertMessageContent("MILLER"));
+
+        siddhiManager.shutdown();
     }
 }
 
