@@ -20,19 +20,19 @@ package org.wso2.extension.siddhi.io.nats.sink.exception;
 /**
  * Encapsulates the sink adapter exception details.
  */
-public class NatsSinkAdaptorRuntimeException extends RuntimeException {
-    public NatsSinkAdaptorRuntimeException() {
+public class NATSSinkAdaptorRuntimeException extends RuntimeException {
+    public NATSSinkAdaptorRuntimeException() {
     }
 
-    public NatsSinkAdaptorRuntimeException(String message) {
+    public NATSSinkAdaptorRuntimeException(String message) {
         super(message);
     }
 
-    public NatsSinkAdaptorRuntimeException(String message, Throwable cause) {
+    public NATSSinkAdaptorRuntimeException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public NatsSinkAdaptorRuntimeException(Throwable cause) {
+    public NATSSinkAdaptorRuntimeException(Throwable cause) {
         super(cause);
     }
 }

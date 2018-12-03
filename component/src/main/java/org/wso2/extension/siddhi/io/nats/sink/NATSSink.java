@@ -20,8 +20,9 @@ package org.wso2.extension.siddhi.io.nats.sink;
 import io.nats.streaming.StreamingConnection;
 import io.nats.streaming.StreamingConnectionFactory;
 import org.apache.log4j.Logger;
-import org.wso2.extension.siddhi.io.nats.util.NatsConstants;
-import org.wso2.extension.siddhi.io.nats.util.NatsUtils;
+import org.wso2.extension.siddhi.io.nats.sink.exception.NATSSinkAdaptorRuntimeException;
+import org.wso2.extension.siddhi.io.nats.util.NATSConstants;
+import org.wso2.extension.siddhi.io.nats.util.NATSUtils;
 import org.wso2.siddhi.annotation.Example;
 import org.wso2.siddhi.annotation.Extension;
 import org.wso2.siddhi.annotation.Parameter;
@@ -36,66 +37,70 @@ import org.wso2.siddhi.core.util.transport.OptionHolder;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
 
 import java.io.IOException;
-import java.util.Date;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Stan output transport(Handle the publishing process)  class.
+ * NATS output transport(Handle the publishing process) class.
  */
 @Extension(
         name = "nats",
         namespace = "sink",
-        description = "Nats Sink allows users to subscribe to a Stan broker and publish messages.",
+        description = "NATS Sink allows users to subscribe to a NATS broker and publish messages.",
         parameters = {
-                @Parameter(name = NatsConstants.DESTINATION,
-                        description = "Subject name which nats sink should publish to",
+                @Parameter(name = NATSConstants.DESTINATION,
+                        description = "Subject name which NATS sink should publish to.",
                         type = DataType.STRING,
                         dynamic = true
                 ),
-                @Parameter(name = NatsConstants.BOOTSTRAP_SERVERS,
-                        description = "The nats based url of the nats server. Coma separated url values can be used "
-                                + "in case of a cluster used.",
+                @Parameter(name = NATSConstants.BOOTSTRAP_SERVERS,
+                        description = "The NATS based url of the NATS server.",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = NatsConstants.DEFAULT_SERVER_URL
+                        defaultValue = NATSConstants.DEFAULT_SERVER_URL
                 ),
-                @Parameter(name = NatsConstants.CLIENT_ID,
-                        description = "The identifier of the client publishing/connecting to the nats broker",
+                @Parameter(name = NATSConstants.CLIENT_ID,
+                        description = "The identifier of the client publishing/connecting to the NATS broker. Should " +
+                                "be unique for each client connecting to the server/cluster.",
                         type = DataType.STRING,
                         optional = true,
                         defaultValue = "None"
                 ),
-                @Parameter(name = NatsConstants.CLUSTER_ID,
-                        description = "The identifier of the nats server/cluster.",
+                @Parameter(name = NATSConstants.CLUSTER_ID,
+                        description = "The identifier of the NATS server/cluster.",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = NatsConstants.DEFAULT_CLUSTER_ID
+                        defaultValue = NATSConstants.DEFAULT_CLUSTER_ID
                 ),
         },
         examples = {
-                @Example(description = "This example shows how to publish to a nats subject with all supporting " +
-                        "configurations.",
+                @Example(description = "This example shows how to publish to a NATS subject with all supporting "
+                        + "configurations. With the following configuration the sink identified as 'nats-client' will "
+                        + "publish to a subject named as 'SP_NATS_OUTPUT_TEST' which resides in a nats instance with "
+                        + "a cluster id of 'test-cluster', running in localhost and listening to the port 4222 for "
+                        + "client connection.",
                         syntax = "@sink(type='nats', @map(type='xml'), "
                                 + "destination='SP_NATS_OUTPUT_TEST', "
                                 + "bootstrap.servers='nats://localhost:4222',"
                                 + "client.id='nats_client',"
-                                + "server.id='test-cluster',"
+                                + "server.id='test-cluster'"
                                 + ")\n"
                                 + "define stream outputStream (name string, age int, country string);"),
 
-                @Example(description = "This example shows how to publish to a nats subject with mandatory " +
-                        "configurations.",
+                @Example(description = "This example shows how to publish to a NATS subject with mandatory "
+                        + "configurations. With the following configuration the sink identified with an auto generated "
+                        + "client id will publish to a subject named as 'SP_NATS_OUTPUT_TEST' which resides in a "
+                        + "nats instance with a cluster id of 'test-cluster', running in localhost and listening to "
+                        + "the port 4222 for client connection.",
                         syntax = "@sink(type='nats', @map(type='xml'), "
-                                + "destination='SP_NATS_OUTPUT_TEST', "
-                                + ")\n"
+                                + "destination='SP_NATS_OUTPUT_TEST')\n"
                                 + "define stream outputStream (name string, age int, country string);")
         }
 )
 
-public class NatsSink extends Sink {
-    private static final Logger log = Logger.getLogger(NatsSink.class);
+public class NATSSink extends Sink {
+    private static final Logger log = Logger.getLogger(NATSSink.class);
     private StreamingConnection streamingConnection;
     private OptionHolder optionHolder;
     private StreamDefinition streamDefinition;
@@ -103,7 +108,6 @@ public class NatsSink extends Sink {
     private String clusterId;
     private String clientId;
     private String natsUrl;
-    private ExecutorService executorService;
 
     /**
      * Returns the list of classes which this sink can consume.
@@ -119,39 +123,54 @@ public class NatsSink extends Sink {
      */
     @Override
     public String[] getSupportedDynamicOptions() {
-            return new String[]{NatsConstants.DESTINATION};
+            return new String[]{NATSConstants.DESTINATION};
     }
 
     /**
-     * Validate and initiates the nats properties and required passed parameters.
+     * Validate and initiates the NATS properties and required passed parameters.
      * @param streamDefinition  containing stream definition bind to the {@link Sink}
-     * @param optionHolder            Option holder containing static and dynamic configuration related
-     *                                to the {@link Sink}
-     * @param configReader        to read the sink related system configuration.
-     * @param siddhiAppContext        the context of the {@link org.wso2.siddhi.query.api.SiddhiApp} used to
-     *                                get siddhi related utility functions.
+     * @param optionHolder      Option holder containing static and dynamic configuration related
+     *                          to the {@link Sink}
+     * @param configReader      to read the sink related system configuration.
+     * @param siddhiAppContext  the context of the {@link org.wso2.siddhi.query.api.SiddhiApp} used to
+     *                          get siddhi related utility functions.
      */
     @Override
     protected void init(StreamDefinition streamDefinition, OptionHolder optionHolder, ConfigReader configReader,
             SiddhiAppContext siddhiAppContext) {
         this.optionHolder = optionHolder;
         this.streamDefinition = streamDefinition;
-        this.executorService = siddhiAppContext.getExecutorService();
-        validateAndInitStanProperties();
+        validateAndInitNatsProperties();
     }
 
     /**
-     * Publish the given event to the nats server.
+     * Publish the given event to the NATS server.
      * @param payload        payload of the event based on the supported event class exported by the extensions
      * @param dynamicOptions holds the dynamic options of this sink and Use this object to obtain dynamic options.
      */
     @Override
     public void publish(Object payload, DynamicOptions dynamicOptions) {
-        executorService.execute(new NatsPublisher(destination.getValue(dynamicOptions), streamingConnection, payload));
+        String message = (String) payload;
+        String subjectName = destination.getValue();
+        try {
+            streamingConnection.publish(subjectName, message.getBytes(StandardCharsets.UTF_8), new AsyncAckHandler());
+        } catch (IOException e) {
+            log.error("Error sending message to destination: " + subjectName);
+            throw new NATSSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName, e);
+        } catch (InterruptedException e) {
+            log.error("Error sending message to destination: " + subjectName +  ".The calling thread is "
+                    + "interrupted before the call completes.");
+            throw new NATSSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName
+                    + ".The calling thread is interrupted before the call completes.", e);
+        } catch (TimeoutException e) {
+            log.error("Error sending message to destination: " + subjectName + ".Timeout occured while trying to ack.");
+            throw new NATSSinkAdaptorRuntimeException("Error sending message to destination:" + subjectName
+                    + ".Timeout occured while trying to ack.", e);
+        }
     }
 
     /**
-     * Initializes the connection to the nats server.
+     * Initializes the connection to the NATS server.
      * @throws ConnectionUnavailableException if end point is unavailable the ConnectionUnavailableException thrown
      *                                        such that the  system will take care retrying for connection
      */
@@ -162,18 +181,15 @@ public class NatsSink extends Sink {
         streamingConnectionFactory.setNatsUrl(this.natsUrl);
 
         try {
-
-            log.info(new Date().getTime() + " nats stream connection---------------");
             streamingConnection =  streamingConnectionFactory.createConnection();
-            log.info(new Date().getTime() + " nats stream connection done-------------------");
         } catch (IOException e) {
-            log.error("Error while connecting to nats server at destination: " + destination);
-            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
+            log.error("Error while connecting to NATS server at destination: " + destination);
+            throw new ConnectionUnavailableException("Error while connecting to NATS server at destination: "
                     + destination, e);
         } catch (InterruptedException e) {
-            log.error("Error while connecting to nats server at destination: " + destination + ".The calling thread "
+            log.error("Error while connecting to NATS server at destination: " + destination + ".The calling thread "
                     + "is interrupted before the connection can be established.");
-            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
+            throw new ConnectionUnavailableException("Error while connecting to NATS server at destination: "
                     + destination + " .The calling thread is interrupted before the connection can be established.", e);
         }
     }
@@ -208,15 +224,15 @@ public class NatsSink extends Sink {
 
     }
 
-    private void validateAndInitStanProperties() {
-        this.destination = optionHolder.validateAndGetOption(NatsConstants.DESTINATION);
-        this.clusterId = optionHolder.validateAndGetStaticValue(NatsConstants.CLUSTER_ID, NatsConstants
+    private void validateAndInitNatsProperties() {
+        this.destination = optionHolder.validateAndGetOption(NATSConstants.DESTINATION);
+        this.clusterId = optionHolder.validateAndGetStaticValue(NATSConstants.CLUSTER_ID, NATSConstants
                 .DEFAULT_CLUSTER_ID);
-        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID, NatsUtils.createClientId());
-        this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
-                NatsConstants.DEFAULT_SERVER_URL);
+        this.clientId = optionHolder.validateAndGetStaticValue(NATSConstants.CLIENT_ID, NATSUtils.createClientId());
+        this.natsUrl = optionHolder.validateAndGetStaticValue(NATSConstants.BOOTSTRAP_SERVERS,
+                NATSConstants.DEFAULT_SERVER_URL);
 
-        NatsUtils.validateNatsUrl(natsUrl, streamDefinition.getId());
+        NATSUtils.validateNatsUrl(natsUrl, streamDefinition.getId());
     }
 }
 

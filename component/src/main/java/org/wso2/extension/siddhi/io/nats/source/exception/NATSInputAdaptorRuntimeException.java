@@ -20,19 +20,19 @@ package org.wso2.extension.siddhi.io.nats.source.exception;
 /**
  * Encapsulate the exception details related to input date type.
  */
-public class NatsInputAdaptorRuntimeException extends RuntimeException {
-    public NatsInputAdaptorRuntimeException() {
+public class NATSInputAdaptorRuntimeException extends RuntimeException {
+    public NATSInputAdaptorRuntimeException() {
     }
 
-    public NatsInputAdaptorRuntimeException(String message) {
+    public NATSInputAdaptorRuntimeException(String message) {
         super(message);
     }
 
-    public NatsInputAdaptorRuntimeException(String message, Throwable cause) {
+    public NATSInputAdaptorRuntimeException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public NatsInputAdaptorRuntimeException(Throwable cause) {
+    public NATSInputAdaptorRuntimeException(Throwable cause) {
         super(cause);
     }
 }

@@ -4,7 +4,7 @@
 
 ### nats *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#sink">(Sink)</a>*
 
-<p style="word-wrap: break-word">Nats Sink allows users to subscribe to a Stan broker and publish messages.</p>
+<p style="word-wrap: break-word">NATS Sink allows users to subscribe to a NATS broker and publish messages.</p>
 
 <span id="syntax" class="md-typeset" style="display: block; font-weight: bold;">Syntax</span>
 ```
@@ -23,7 +23,7 @@
     </tr>
     <tr>
         <td style="vertical-align: top">destination</td>
-        <td style="vertical-align: top; word-wrap: break-word">Subject name which nats sink should publish to</td>
+        <td style="vertical-align: top; word-wrap: break-word">Subject name which NATS sink should publish to.</td>
         <td style="vertical-align: top"></td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">No</td>
@@ -31,7 +31,7 @@
     </tr>
     <tr>
         <td style="vertical-align: top">bootstrap.servers</td>
-        <td style="vertical-align: top; word-wrap: break-word">The nats based url of the nats server. Coma separated url values can be used in case of a cluster used.</td>
+        <td style="vertical-align: top; word-wrap: break-word">The NATS based url of the NATS server.</td>
         <td style="vertical-align: top">nats://localhost:4222</td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">Yes</td>
@@ -39,15 +39,15 @@
     </tr>
     <tr>
         <td style="vertical-align: top">client.id</td>
-        <td style="vertical-align: top; word-wrap: break-word">The identifier of the client publishing/connecting to the nats broker</td>
-        <td style="vertical-align: top"></td>
+        <td style="vertical-align: top; word-wrap: break-word">The identifier of the client publishing/connecting to the NATS broker. Should be unique for each client connecting to the server/cluster.</td>
+        <td style="vertical-align: top">None</td>
         <td style="vertical-align: top">STRING</td>
-        <td style="vertical-align: top">No</td>
+        <td style="vertical-align: top">Yes</td>
         <td style="vertical-align: top">No</td>
     </tr>
     <tr>
         <td style="vertical-align: top">cluster.id</td>
-        <td style="vertical-align: top; word-wrap: break-word">The identifier of the nats server/cluster.</td>
+        <td style="vertical-align: top; word-wrap: break-word">The identifier of the NATS server/cluster.</td>
         <td style="vertical-align: top">test-cluster</td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">Yes</td>
@@ -58,20 +58,27 @@
 <span id="examples" class="md-typeset" style="display: block; font-weight: bold;">Examples</span>
 <span id="example-1" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">EXAMPLE 1</span>
 ```
-@sink(type='nats', @map(type='xml'), destination='SP_NATS_OUTPUT_TEST', bootstrap.servers='nats://localhost:4222',client.id='nats_client'server.id='test-cluster)
+@sink(type='nats', @map(type='xml'), destination='SP_NATS_OUTPUT_TEST', bootstrap.servers='nats://localhost:4222',client.id='nats_client',server.id='test-cluster')
 define stream outputStream (name string, age int, country string);
 ```
-<p style="word-wrap: break-word">This example shows how to publish to a nats subject.</p>
+<p style="word-wrap: break-word">This example shows how to publish to a NATS subject with all supporting configurations. With the following configuration the sink identified as 'nats-client' will publish to a subject named as 'SP_NATS_OUTPUT_TEST' which resides in a nats instance with a cluster id of 'test-cluster', running in localhost and listening to the port 4222 for client connection.</p>
+
+<span id="example-2" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">EXAMPLE 2</span>
+```
+@sink(type='nats', @map(type='xml'), destination='SP_NATS_OUTPUT_TEST')
+define stream outputStream (name string, age int, country string);
+```
+<p style="word-wrap: break-word">This example shows how to publish to a NATS subject with mandatory configurations. With the following configuration the sink identified with an auto generated client id will publish to a subject named as 'SP_NATS_OUTPUT_TEST' which resides in a nats instance with a cluster id of 'test-cluster', running in localhost and listening to the port 4222 for client connection.</p>
 
 ## Source
 
 ### nats *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#source">(Source)</a>*
 
-<p style="word-wrap: break-word">Nats Source allows users to subscribe to a Stan broker and receive messages. It has the ability to receive Text based messages.</p>
+<p style="word-wrap: break-word">NATS Source allows users to subscribe to a NATS broker and receive messages. It has the ability to receive all the message types supported by NATS.</p>
 
 <span id="syntax" class="md-typeset" style="display: block; font-weight: bold;">Syntax</span>
 ```
-@source(type="nats", destination="<STRING>", bootstrap.servers="<STRING>", client.id="<STRING>", cluster.id="<STRING>", @map(...)))
+@source(type="nats", destination="<STRING>", bootstrap.servers="<STRING>", client.id="<STRING>", cluster.id="<STRING>", queue.group.name="<STRING>", durable.name="<STRING>", subscription.sequence="<STRING>", @map(...)))
 ```
 
 <span id="query-parameters" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">QUERY PARAMETERS</span>
@@ -86,7 +93,7 @@ define stream outputStream (name string, age int, country string);
     </tr>
     <tr>
         <td style="vertical-align: top">destination</td>
-        <td style="vertical-align: top; word-wrap: break-word">Subject name which Stan Source should subscribe to</td>
+        <td style="vertical-align: top; word-wrap: break-word">Subject name which NATS Source should subscribe to.</td>
         <td style="vertical-align: top"></td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">No</td>
@@ -94,7 +101,7 @@ define stream outputStream (name string, age int, country string);
     </tr>
     <tr>
         <td style="vertical-align: top">bootstrap.servers</td>
-        <td style="vertical-align: top; word-wrap: break-word">The nats based url of the nats server. Coma seperated url values can be used in case of a cluster used.</td>
+        <td style="vertical-align: top; word-wrap: break-word">The NATS based url of the NATS server.</td>
         <td style="vertical-align: top">nats://localhost:4222</td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">Yes</td>
@@ -102,16 +109,40 @@ define stream outputStream (name string, age int, country string);
     </tr>
     <tr>
         <td style="vertical-align: top">client.id</td>
-        <td style="vertical-align: top; word-wrap: break-word">The identifier of the client subscribing/connecting to the nats broker</td>
-        <td style="vertical-align: top"></td>
+        <td style="vertical-align: top; word-wrap: break-word">The identifier of the client subscribing/connecting to the NATS broker.</td>
+        <td style="vertical-align: top">None</td>
         <td style="vertical-align: top">STRING</td>
-        <td style="vertical-align: top">No</td>
+        <td style="vertical-align: top">Yes</td>
         <td style="vertical-align: top">No</td>
     </tr>
     <tr>
         <td style="vertical-align: top">cluster.id</td>
-        <td style="vertical-align: top; word-wrap: break-word">The identifier of the nats server/cluster.</td>
+        <td style="vertical-align: top; word-wrap: break-word">The identifier of the NATS server/cluster.</td>
         <td style="vertical-align: top">test-cluster</td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">Yes</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">queue.group.name</td>
+        <td style="vertical-align: top; word-wrap: break-word">This can be used when there is a requirement to share the load of a NATS subject. Clients belongs to the same queue group share the subscription load.</td>
+        <td style="vertical-align: top">None</td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">Yes</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">durable.name</td>
+        <td style="vertical-align: top; word-wrap: break-word">This can be used to subscribe to a subject from the last acknowledged message when a client or connection failure happens. The client can be uniquely identified using the tuple (client.id, durable.name).</td>
+        <td style="vertical-align: top">None</td>
+        <td style="vertical-align: top">STRING</td>
+        <td style="vertical-align: top">Yes</td>
+        <td style="vertical-align: top">No</td>
+    </tr>
+    <tr>
+        <td style="vertical-align: top">subscription.sequence</td>
+        <td style="vertical-align: top; word-wrap: break-word">This can be used to subscribe to a subject from a given number of message sequence. All the messages from the given point of sequence number will be passed to the client. If not provided then the either the persisted value or 0 will be used.</td>
+        <td style="vertical-align: top">None</td>
         <td style="vertical-align: top">STRING</td>
         <td style="vertical-align: top">Yes</td>
         <td style="vertical-align: top">No</td>
@@ -121,8 +152,15 @@ define stream outputStream (name string, age int, country string);
 <span id="examples" class="md-typeset" style="display: block; font-weight: bold;">Examples</span>
 <span id="example-1" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">EXAMPLE 1</span>
 ```
-@source(type='nats', @map(type='text'), destination='SP_NATS_INPUT_TEST', bootstrap.servers='nats://localhost:4222',client.id='stan_client'server.id='test-cluster)
+@source(type='nats', @map(type='text'), destination='SP_NATS_INPUT_TEST', bootstrap.servers='nats://localhost:4222',client.id='nats_client',server.id='test-cluster',queue.group.name = 'group_nats',durable.name = 'nats-durable',subscription.sequence = '100')
 define stream inputStream (name string, age int, country string);
 ```
-<p style="word-wrap: break-word">This example shows how to subscribe to a nats subject.</p>
+<p style="word-wrap: break-word">This example shows how to subscribe to a NATS subject with all supporting configurations.With the following configuration the source identified as 'nats-client' will subscribes to a subject named as 'SP_NATS_INPUT_TEST' which resides in a nats instance with a cluster id of 'test-cluster', running in localhost and listening to the port 4222 for client connection. This subscription will receive all the messages from 100th in the subject.</p>
+
+<span id="example-2" class="md-typeset" style="display: block; color: rgba(0, 0, 0, 0.54); font-size: 12.8px; font-weight: bold;">EXAMPLE 2</span>
+```
+@source(type='nats', @map(type='text'), destination='SP_NATS_INPUT_TEST', )
+define stream inputStream (name string, age int, country string);
+```
+<p style="word-wrap: break-word">This example shows how to subscribe to a NATS subject with mandatory configurations.With the following configuration the source identified with an auto generated client id will subscribes to a subject named as 'SP_NATS_INTPUT_TEST' which resides in a nats instance with a cluster id of 'test-cluster', running in localhost and listening to the port 4222 for client connection. This will receive all available messages in the subject</p>
 

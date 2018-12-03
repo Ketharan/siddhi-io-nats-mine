@@ -27,7 +27,7 @@
     <modelVersion>4.0.0</modelVersion>
     <artifactId>siddhi-io-nats</artifactId>
     <packaging>bundle</packaging>
-    <name>Siddhi io nats extension</name>
+    <name>Siddhi Extension - NATS </name>
     <dependencies>
         <dependency>
             <groupId>org.wso2.siddhi</groupId>
@@ -69,6 +69,11 @@
         <dependency>
             <groupId>org.wso2.extension.siddhi.map.json</groupId>
             <artifactId>siddhi-map-json</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -126,7 +131,7 @@
                             org.wso2.extension.siddhi.io.nats.*
                         </Export-Package>
                         <Import-Package>
-                            *;resolution:=optional
+                            ;resolution:=optional
                         </Import-Package>
                         <DynamicImport-Package>*</DynamicImport-Package>
                         <Include-Resource>
@@ -134,10 +139,6 @@
                         </Include-Resource>
                     </instructions>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

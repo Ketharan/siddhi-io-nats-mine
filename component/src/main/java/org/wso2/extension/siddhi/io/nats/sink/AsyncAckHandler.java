@@ -16,24 +16,26 @@
  *  under the License.
  */
 
-package org.wso2.extension.siddhi.io.nats.exception;
+package org.wso2.extension.siddhi.io.nats.sink;
+
+import io.nats.streaming.AckHandler;
+import org.apache.log4j.Logger;
 
 /**
- * Encapsulates the information on invalid nats sink properties.
+ * Handle the acknowledgement for the published messages in an asynchronous manner.
  */
-public class InvalidNatsPropertiesException extends RuntimeException {
-    public InvalidNatsPropertiesException() {
-    }
+public class AsyncAckHandler implements AckHandler {
+    private static final Logger log = Logger.getLogger(AsyncAckHandler.class);
 
-    public InvalidNatsPropertiesException(String message) {
-        super(message);
-    }
-
-    public InvalidNatsPropertiesException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
-    public InvalidNatsPropertiesException(Throwable cause) {
-        super(cause);
+    @Override
+    public void onAck(String nuid, Exception exception) {
+        if (exception != null) {
+            log.error("Error publishing msg id " + nuid + " : " + exception.getMessage());
+        } else {
+            if (log.isDebugEnabled()) {
+                log.debug("Received ack for msg id " + nuid);
+            }
+        }
     }
 }
+

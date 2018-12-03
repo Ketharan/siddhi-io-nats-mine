@@ -22,9 +22,9 @@ import io.nats.streaming.StreamingConnectionFactory;
 import io.nats.streaming.Subscription;
 import io.nats.streaming.SubscriptionOptions;
 import org.apache.log4j.Logger;
-import org.wso2.extension.siddhi.io.nats.source.exception.NatsInputAdaptorRuntimeException;
-import org.wso2.extension.siddhi.io.nats.util.NatsConstants;
-import org.wso2.extension.siddhi.io.nats.util.NatsUtils;
+import org.wso2.extension.siddhi.io.nats.source.exception.NATSInputAdaptorRuntimeException;
+import org.wso2.extension.siddhi.io.nats.util.NATSConstants;
+import org.wso2.extension.siddhi.io.nats.util.NATSUtils;
 import org.wso2.siddhi.annotation.Example;
 import org.wso2.siddhi.annotation.Extension;
 import org.wso2.siddhi.annotation.Parameter;
@@ -48,64 +48,81 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Extension(
         name = "nats",
         namespace = "source",
-        description = "Nats Source allows users to subscribe to a Stan broker and receive messages. It has the "
-                + "ability to receive Text based messages.",
+        description = "NATS Source allows users to subscribe to a NATS broker and receive messages. It has the "
+                + "ability to receive all the message types supported by NATS.",
         parameters = {
-                @Parameter(name = NatsConstants.DESTINATION,
-                        description = "Subject name which Stan Source should subscribe to",
+                @Parameter(name = NATSConstants.DESTINATION,
+                        description = "Subject name which NATS Source should subscribe to.",
                         type = DataType.STRING
                 ),
-                @Parameter(name = NatsConstants.BOOTSTRAP_SERVERS,
-                        description = "The nats based url of the nats server. Coma seperated url values can be used "
-                                + "in case of a cluster used.",
+                @Parameter(name = NATSConstants.BOOTSTRAP_SERVERS,
+                        description = "The NATS based url of the NATS server.",
                         type = DataType.STRING,
                         optional = true,
-                        defaultValue = NatsConstants.DEFAULT_SERVER_URL
+                        defaultValue = NATSConstants.DEFAULT_SERVER_URL
                 ),
-                @Parameter(name = NatsConstants.CLIENT_ID,
-                        description = "The identifier of the client subscribing/connecting to the nats broker",
-                        type = DataType.STRING,
-                        optional = true,
-                        defaultValue = "None"
-                ),
-                @Parameter(name = NatsConstants.CLUSTER_ID,
-                        description = "The identifier of the nats server/cluster.",
-                        type = DataType.STRING,
-                        optional = true,
-                        defaultValue = NatsConstants.DEFAULT_CLUSTER_ID
-                ),
-                @Parameter(name = NatsConstants.QUEUE_GROUP_NAME,
-                        description = "This can be used when there is a requirement to share the load of a nats " +
-                                "subject. Clients belongs to the same queue group share the subscription load." ,
+                @Parameter(name = NATSConstants.CLIENT_ID,
+                        description = "The identifier of the client subscribing/connecting to the NATS broker.",
                         type = DataType.STRING,
                         optional = true,
                         defaultValue = "None"
                 ),
-                @Parameter(name = NatsConstants.DURABLE_NAME,
-                        description = "This can be used to subscribe to a subject from the last acknowledged message " +
-                                "when a client or connection failure happens. The client can be uniquely identified " +
-                                "using the tuple (" + NatsConstants.CLIENT_ID + ", " + NatsConstants.DURABLE_NAME +
-                                ").",
+                @Parameter(name = NATSConstants.CLUSTER_ID,
+                        description = "The identifier of the NATS server/cluster.",
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = NATSConstants.DEFAULT_CLUSTER_ID
+                ),
+                @Parameter(name = NATSConstants.QUEUE_GROUP_NAME,
+                        description = "This can be used when there is a requirement to share the load of a NATS "
+                                + "subject. Clients belongs to the same queue group share the subscription load." ,
                         type = DataType.STRING,
                         optional = true,
                         defaultValue = "None"
                 ),
+                @Parameter(name = NATSConstants.DURABLE_NAME,
+                        description = "This can be used to subscribe to a subject from the last acknowledged message "
+                                + "when a client or connection failure happens. The client can be uniquely identified "
+                                + "using the tuple (" + NATSConstants.CLIENT_ID + ", " + NATSConstants.DURABLE_NAME
+                                + ").",
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = "None"
+                ),
+                @Parameter(name = NATSConstants.SUBSCRIPTION_SEQUENCE,
+                        description = "This can be used to subscribe to a subject from a given number of message "
+                                + "sequence. All the messages from the given point of sequence number will be passed to"
+                                + " the client. If not provided then the either the persisted value or 0 will be used.",
+                        type = DataType.STRING,
+                        optional = true,
+                        defaultValue = "None"
+                )
+
         },
         examples = {
-                @Example(description = "This example shows how to subscribe to a nats subject with all supporting " +
-                        "configurations.",
+                @Example(description = "This example shows how to subscribe to a NATS subject with all supporting "
+                        + "configurations.With the following configuration the source identified as 'nats-client' will "
+                        + "subscribes to a subject named as 'SP_NATS_INPUT_TEST' which resides in a nats instance "
+                        + "with a cluster id of 'test-cluster', running in localhost and listening to the port 4222 for"
+                        + " client connection. This subscription will receive all the messages from 100th in the "
+                        + "subject.",
                         syntax = "@source(type='nats', @map(type='text'), "
                                 + "destination='SP_NATS_INPUT_TEST', "
                                 + "bootstrap.servers='nats://localhost:4222',"
                                 + "client.id='nats_client',"
                                 + "server.id='test-cluster',"
-                                + "queue.group.name = 'group_1',"
-                                + "durable.name = 'nats-durable'"
+                                + "queue.group.name = 'group_nats',"
+                                + "durable.name = 'nats-durable',"
+                                + "subscription.sequence = '100'"
                                 + ")\n"
                                 + "define stream inputStream (name string, age int, country string);"),
 
-                @Example(description = "This example shows how to subscribe to a nats subject with mandatory " +
-                        "configurations.",
+                @Example(description = "This example shows how to subscribe to a NATS subject with mandatory "
+                        + "configurations.With the following configuration the source identified with an auto generated"
+                        + " client id will subscribes to a subject named as 'SP_NATS_INTPUT_TEST' which resides in a "
+                        + "nats instance with a cluster id of 'test-cluster', running in localhost and listening to"
+                        + " the port 4222 for client connection. This will receive all available messages in the "
+                        + "subject",
                         syntax = "@source(type='nats', @map(type='text'), "
                                 + "destination='SP_NATS_INPUT_TEST', "
                                 + ")\n"
@@ -113,8 +130,8 @@ import java.util.concurrent.atomic.AtomicInteger;
         }
 )
 
-public class NatsSource extends Source {
-    private static final Logger log = Logger.getLogger(NatsSource.class);
+public class NATSSource extends Source {
+    private static final Logger log = Logger.getLogger(NATSSource.class);
     private SourceEventListener sourceEventListener;
     private OptionHolder optionHolder;
     private StreamingConnection streamingConnection;
@@ -124,14 +141,14 @@ public class NatsSource extends Source {
     private String natsUrl;
     private String queueGroupName;
     private String durableName;
+    private String  sequenceNumber;
     private Subscription subscription;
-    private SiddhiAppContext siddhiAppContext;
-    private NatsMessageProcessor natsMessageProcessor;
-    private AtomicInteger lastSentSequenceNo = new AtomicInteger(0);
+    private NATSMessageProcessor natsMessageProcessor;
+    private static final AtomicInteger lastSentSequenceNo = new AtomicInteger(1);
     private String siddhiAppName;
     /**
      * The initialization method for {@link Source}, will be called before other methods. Validates and initiates the
-     * nats properties and other required fields.
+     * NATS properties and other required fields.
      * @param sourceEventListener After receiving events, the source should trigger onEvent() of this listener.
      *                            Listener will then pass on the events to the appropriate mappers for processing .
      * @param optionHolder        Option holder containing static configuration related to the {@link Source}
@@ -145,15 +162,13 @@ public class NatsSource extends Source {
                      SiddhiAppContext siddhiAppContext) {
         this.sourceEventListener = sourceEventListener;
         this.optionHolder = optionHolder;
-        this.siddhiAppContext = siddhiAppContext;
-        this.natsMessageProcessor = new NatsMessageProcessor(sourceEventListener, siddhiAppContext ,
-                lastSentSequenceNo);
+        this.natsMessageProcessor = new NATSMessageProcessor(sourceEventListener, lastSentSequenceNo);
         this.siddhiAppName = siddhiAppContext.getName();
-        initStanProperties();
+        initNATSProperties();
     }
 
     /**
-     * Returns the list of classes which nats source can output.
+     * Returns the list of classes which NATS source can output.
      * @return Array of classes that will be output by the source.
      */
     @Override
@@ -162,7 +177,7 @@ public class NatsSource extends Source {
     }
 
     /**
-     * Initially Called to connect to the nats server for start retrieving the messages asynchronously .
+     * Initially Called to connect to the NATS server for start retrieving the messages asynchronously .
      * @param connectionCallback Callback to pass the ConnectionUnavailableException in case of connection failure after
      *                           initial successful connection. (can be used when events are receiving asynchronously)
      * @throws ConnectionUnavailableException if it cannot connect to the source backend immediately.
@@ -175,20 +190,20 @@ public class NatsSource extends Source {
             streamingConnectionFactory.setNatsUrl(this.natsUrl);
             streamingConnection =  streamingConnectionFactory.createConnection();
         } catch (IOException e) {
-            log.error("Error while connecting to nats server at destination: " + destination);
-            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
+            log.error("Error while connecting to NATS server at destination: " + destination);
+            throw new ConnectionUnavailableException("Error while connecting to NATS server at destination: "
                     + destination, e);
         } catch (InterruptedException e) {
-            log.error("Error while connecting to nats server at destination: " + destination + ".The calling thread "
+            log.error("Error while connecting to NATS server at destination: " + destination + ".The calling thread "
                     + "is interrupted before the connection can be established.");
-            throw new ConnectionUnavailableException("Error while connecting to nats server at destination: "
+            throw new ConnectionUnavailableException("Error while connecting to NATS server at destination: "
                     + destination + " .The calling thread is interrupted before the connection can be established.", e);
         }
         subscribe();
     }
 
     /**
-     * This method can be called when it is needed to disconnect from nats server.
+     * This method can be called when it is needed to disconnect from NATS server.
      */
     @Override
     public void disconnect() {
@@ -246,21 +261,26 @@ public class NatsSource extends Source {
      * replay the missing messages/events.
      * @param map the stateful objects of the processing element as a map.
      */
-     @Override
-     public void restoreState(Map<String, Object> map) {
+    @Override
+    public void restoreState(Map<String, Object> map) {
          Object seqObject = map.get(siddhiAppName);
-         if (seqObject != null) {
+         if (seqObject != null && sequenceNumber == null) {
              lastSentSequenceNo.set((int) seqObject);
          }
-     }
+    }
 
     private void subscribe() {
         SubscriptionOptions.Builder subscriptionOptionsBuilder = new SubscriptionOptions.Builder();
+        if (sequenceNumber != null) {
+            lastSentSequenceNo.set(Integer.parseInt(sequenceNumber));
+        }
         subscriptionOptionsBuilder.startAtSequence(lastSentSequenceNo.get());
         try {
+
             if (durableName != null) {
                 subscriptionOptionsBuilder.durableName(durableName);
             }
+
             if (queueGroupName != null) {
                 subscription =  streamingConnection.subscribe(destination , queueGroupName, natsMessageProcessor,
                         subscriptionOptionsBuilder.build());
@@ -270,42 +290,48 @@ public class NatsSource extends Source {
             }
 
         } catch (IOException e) {
-            log.error("Error occurred in initializing the nats receiver for stream: "
+            log.error("Error occurred in initializing the NATS receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId());
-            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the nats receiver for stream: "
+            throw new NATSInputAdaptorRuntimeException("Error occurred in initializing the NATS receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId(), e);
         } catch (InterruptedException e) {
-            log.error("Error occurred in initializing the nats receiver for stream: " + sourceEventListener
+            log.error("Error occurred in initializing the NATS receiver for stream: " + sourceEventListener
                     .getStreamDefinition().getId() + ".The calling thread is interrupted before the connection "
                     + "completes.");
-            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the nats receiver for stream: "
+            throw new NATSInputAdaptorRuntimeException("Error occurred in initializing the NATS receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId() + ".The calling thread is interrupted before "
                     + "the connection completes.", e);
         } catch (TimeoutException e) {
-            log.error("Error occurred in initializing the nats receiver for stream: " + sourceEventListener
+            log.error("Error occurred in initializing the NATS receiver for stream: " + sourceEventListener
                     .getStreamDefinition().getId() + ".The server request cannot be completed within the subscription"
                     + " timeout.");
-            throw new NatsInputAdaptorRuntimeException("Error occurred in initializing the nats receiver for stream: "
+            throw new NATSInputAdaptorRuntimeException("Error occurred in initializing the NATS receiver for stream: "
                     + sourceEventListener.getStreamDefinition().getId() + ".The server request cannot be completed "
                     + "within the subscription timeout.", e);
         }
     }
 
-    private void initStanProperties() {
-        this.destination = optionHolder.validateAndGetStaticValue(NatsConstants.DESTINATION);
-        this.clusterId = optionHolder.validateAndGetStaticValue(NatsConstants.CLUSTER_ID,
-                NatsConstants.DEFAULT_CLUSTER_ID);
-        this.clientId = optionHolder.validateAndGetStaticValue(NatsConstants.CLIENT_ID, NatsUtils.createClientId());
-        this.natsUrl = optionHolder.validateAndGetStaticValue(NatsConstants.BOOTSTRAP_SERVERS,
-                NatsConstants.DEFAULT_SERVER_URL);
-        if (optionHolder.isOptionExists(NatsConstants.DURABLE_NAME)) {
-            this.durableName = optionHolder.validateAndGetStaticValue(NatsConstants.DURABLE_NAME);
+    private void initNATSProperties() {
+        this.destination = optionHolder.validateAndGetStaticValue(NATSConstants.DESTINATION);
+        this.clusterId = optionHolder.validateAndGetStaticValue(NATSConstants.CLUSTER_ID,
+                NATSConstants.DEFAULT_CLUSTER_ID);
+        this.clientId = optionHolder.validateAndGetStaticValue(NATSConstants.CLIENT_ID, NATSUtils.createClientId());
+        this.natsUrl = optionHolder.validateAndGetStaticValue(NATSConstants.BOOTSTRAP_SERVERS,
+                NATSConstants.DEFAULT_SERVER_URL);
+        if (optionHolder.isOptionExists(NATSConstants.DURABLE_NAME)) {
+            this.durableName = optionHolder.validateAndGetStaticValue(NATSConstants.DURABLE_NAME);
         }
 
-        if (optionHolder.isOptionExists(NatsConstants.QUEUE_GROUP_NAME)) {
-            this.queueGroupName = optionHolder.validateAndGetStaticValue(NatsConstants.QUEUE_GROUP_NAME);
+        if (optionHolder.isOptionExists(NATSConstants.QUEUE_GROUP_NAME)) {
+            this.queueGroupName = optionHolder.validateAndGetStaticValue(NATSConstants.QUEUE_GROUP_NAME);
         }
-        NatsUtils.validateNatsUrl(natsUrl, sourceEventListener.getStreamDefinition().getId());
+
+        if (optionHolder.isOptionExists(NATSConstants.SUBSCRIPTION_SEQUENCE)) {
+            this.sequenceNumber = optionHolder.validateAndGetStaticValue(NATSConstants.SUBSCRIPTION_SEQUENCE);
+        }
+        NATSUtils.validateNatsUrl(natsUrl, sourceEventListener.getStreamDefinition().getId());
+
     }
 }
+
 

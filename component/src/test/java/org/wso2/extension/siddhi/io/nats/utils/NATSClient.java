@@ -27,35 +27,33 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 
-public class NatsClient {
+public class NATSClient {
     private String cluserId;
     private String clientId;
     private String natsUrl;
     private ResultContainer resultContainer;
-    private StreamingConnectionFactory streamingConnectionFactory;
     private StreamingConnection streamingConnection;
     private Subscription subscription;
-    private final CountDownLatch doneSignal = new CountDownLatch(1);
-    private static Log log = LogFactory.getLog(NatsClient.class);
+    private static Log log = LogFactory.getLog(NATSClient.class);
 
-    public NatsClient(String clusterId, String clientId, String natsUrl, ResultContainer resultContainer) {
+    public NATSClient(String clusterId, String clientId, String natsUrl, ResultContainer resultContainer) {
         this.cluserId = clusterId;
         this.clientId = clientId;
         this.natsUrl = natsUrl;
         this.resultContainer = resultContainer;
     }
 
-    public NatsClient(String clusterId, String clientId, String natsUrl) {
+    public NATSClient(String clusterId, String clientId, String natsUrl) {
         this.cluserId = clusterId;
         this.clientId = clientId;
         this.natsUrl = natsUrl;
     }
 
     public void connect() {
-        streamingConnectionFactory = new StreamingConnectionFactory(this.cluserId,this.clientId);
+        StreamingConnectionFactory streamingConnectionFactory = new StreamingConnectionFactory(this.cluserId, this
+                .clientId);
         streamingConnectionFactory.setNatsUrl(this.natsUrl);
         try {
             streamingConnection =  streamingConnectionFactory.createConnection();
@@ -112,10 +110,6 @@ public class NatsClient {
                 new SubscriptionOptions.Builder().durableName(durableName).build());
     }
 
-    public void unsubscribe() throws IOException {
-        subscription.unsubscribe();
-    }
-
     public void subscribeWithQueueGroupFromSequence(String subject, String queueGroup, int sequence)
             throws InterruptedException, TimeoutException, IOException {
         subscription = streamingConnection.subscribe(subject, queueGroup, (Message m) ->
@@ -129,5 +123,9 @@ public class NatsClient {
 
     public void close() throws InterruptedException, TimeoutException, IOException {
         streamingConnection.close();
+    }
+
+    public void unsubscribe() throws IOException {
+        subscription.unsubscribe();
     }
 }

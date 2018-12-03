@@ -26,7 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Class to retain results received by nats client so that tests can poll the result and assert against.
+ * Class to retain results received by NATS client so that tests can poll the result and assert against.
  */
 public class ResultContainer {
     private static Log log = LogFactory.getLog(ResultContainer.class);
@@ -51,7 +51,7 @@ public class ResultContainer {
 
     public void eventReceived(String message) {
         eventCount++;
-        results.add(message.toString());
+        results.add(message);
         latch.countDown();
     }
 

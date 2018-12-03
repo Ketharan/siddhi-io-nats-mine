@@ -18,9 +18,9 @@
 package org.wso2.extension.siddhi.io.nats.util;
 
 /**
- * Contains the property key values of nats connection.
+ * Contains the property key values of NATS connection.
  */
-public class NatsConstants {
+public class NATSConstants {
     public static final String DESTINATION = "destination";
     public static final String BOOTSTRAP_SERVERS = "bootstrap.servers";
     public static final String CLIENT_ID = "client.id";
@@ -29,4 +29,5 @@ public class NatsConstants {
     public static final String DEFAULT_CLUSTER_ID = "test-cluster";
     public static final String QUEUE_GROUP_NAME = "queue.group.name";
     public static final String DURABLE_NAME = "durable.name";
+    public static final String SUBSCRIPTION_SEQUENCE = "subscription.sequence";
 }

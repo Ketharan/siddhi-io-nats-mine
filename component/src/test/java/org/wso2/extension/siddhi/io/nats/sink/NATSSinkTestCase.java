@@ -18,9 +18,11 @@
 package org.wso2.extension.siddhi.io.nats.sink;
 
 import org.apache.log4j.Logger;
+import org.testcontainers.containers.GenericContainer;
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import org.wso2.extension.siddhi.io.nats.utils.NatsClient;
+import org.wso2.extension.siddhi.io.nats.utils.NATSClient;
 import org.wso2.extension.siddhi.io.nats.utils.ResultContainer;
 import org.wso2.extension.siddhi.io.nats.utils.UnitTestAppender;
 import org.wso2.siddhi.core.SiddhiAppRuntime;
@@ -28,34 +30,47 @@ import org.wso2.siddhi.core.SiddhiManager;
 import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
 import org.wso2.siddhi.core.exception.SiddhiAppCreationException;
 import org.wso2.siddhi.core.stream.input.InputHandler;
+import org.wso2.siddhi.core.stream.output.sink.Sink;
 import org.wso2.siddhi.query.api.exception.SiddhiAppValidationException;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
-public class NatsSinkTestCase {
-    private static Logger log = Logger.getLogger(NatsSinkTestCase.class);
+public class NATSSinkTestCase {
+    private Logger log = Logger.getLogger(NATSSinkTestCase.class);
+    private int port;
+
+    @BeforeClass
+    private void initializeDockerContainer() throws InterruptedException {
+        GenericContainer simpleWebServer
+                = new GenericContainer("nats-streaming:0.11.2");
+        simpleWebServer.setPrivilegedMode(true);
+        simpleWebServer.start();
+        port = simpleWebServer.getMappedPort(4222);
+        Thread.sleep(500);
+    }
+
     /**
-     * Test for configure the nats Sink to publish the message to a nats-streaming subject.
+     * Test for configure the NATS Sink to publish the message to a NATS-streaming subject.
      */
     @Test
     public void natsSimplePublishTest() throws InterruptedException, TimeoutException, IOException {
         ResultContainer resultContainer = new ResultContainer(2,3);
-        NatsClient natsClient = new NatsClient("test-cluster","stan_test1","nats://localhost:4222"
-                , resultContainer);
-        natsClient.connect();
+        NATSClient NATSClient = new NATSClient("test-cluster","stan_test1","nats://localhost:"
+                + port, resultContainer);
+        NATSClient.connect();
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "@App:name('Test-plan1')\n"
                 + "@sink(type='nats', @map(type='xml'), "
                 + "destination='nats-test1', "
                 + "client.id='test-plan1-siddhi',"
-                + "bootstrap.servers='nats://localhost:4222',"
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "cluster.id='test-cluster'"
                 + ")"
                 + "define stream inputStream (name string, age int, country string);";
 
-        natsClient.subsripeFromNow("nats-test1");
+        NATSClient.subsripeFromNow("nats-test1");
         SiddhiAppRuntime executionPlanRuntime = siddhiManager.
                 createSiddhiAppRuntime(inStreamDefinition);
         InputHandler inputStream = executionPlanRuntime.getInputHandler("inputStream");
@@ -79,7 +94,7 @@ public class NatsSinkTestCase {
         SiddhiManager siddhiManager = new SiddhiManager();
         String inStreamDefinition = "@App:name('Test-plan2')\n"
                 + "@sink(type='nats', @map(type='xml'), "
-                + "bootstrap.servers='nats://localhost:4222',"
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "client.id='test-plan2',"
                 + "cluster.id='test-cluster'"
                 + ")"
@@ -95,7 +110,7 @@ public class NatsSinkTestCase {
     }
 
     /**
-     * If invalid nats url provided then {@link SiddhiAppCreationException} will be thrown
+     * If invalid NATS url provided then {@link SiddhiAppCreationException} will be thrown
      */
     @Test
     public void testInvalidNatsUrl(){
@@ -112,8 +127,8 @@ public class NatsSinkTestCase {
         try {
             SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(inStreamDefinition);
             Assert.fail();
-        } catch (SiddhiAppCreationException e) {
-            Assert.assertTrue(e.getMessage().contains("Invalid nats url"));
+        } catch (SiddhiAppValidationException e) {
+            Assert.assertTrue(e.getMessage().contains("Invalid NATS url"));
         }
     }
 
@@ -124,20 +139,20 @@ public class NatsSinkTestCase {
     @Test()
     public void testOptionalClientId() throws InterruptedException, TimeoutException, IOException {
         ResultContainer resultContainer = new ResultContainer(2,3);
-        NatsClient natsClient = new NatsClient("test-cluster","test-plan4","nats://localhost:4222"
-                , resultContainer);
-        natsClient.connect();
+        NATSClient NATSClient = new NATSClient("test-cluster","test-plan4","nats://localhost:"
+                + port, resultContainer);
+        NATSClient.connect();
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "@App:name('Test-plan1')\n"
                 + "@sink(type='nats', @map(type='xml'), "
                 + "destination='test-plan4', "
-                + "bootstrap.servers='nats://localhost:4222',"
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "cluster.id='test-cluster'"
                 + ")"
                 + "define stream inputStream (name string, age int, country string);";
 
-        natsClient.subsripeFromNow("test-plan4");
+        NATSClient.subsripeFromNow("test-plan4");
         SiddhiAppRuntime executionPlanRuntime = siddhiManager.
                 createSiddhiAppRuntime(inStreamDefinition);
         InputHandler inputStream = executionPlanRuntime.getInputHandler("inputStream");
@@ -159,28 +174,28 @@ public class NatsSinkTestCase {
     @Test
     public void testMultipleSinkSingleStream() throws InterruptedException, TimeoutException, IOException {
         ResultContainer resultContainer = new ResultContainer(8,3);
-        NatsClient natsClient = new NatsClient("test-cluster","nats-test-plan5","nats://localhost:4222"
-                , resultContainer);
-        natsClient.connect();
+        NATSClient NATSClient = new NATSClient("test-cluster","nats-test-plan5",
+                "nats://localhost:" + port, resultContainer);
+        NATSClient.connect();
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "@App:name('Test-plan5')\n"
                 + "@sink(type='nats', @map(type='xml'), "
                 + "destination='nats-source-test-siddhi-1', "
                 + "client.id='test-plan5-siddhi-sink-pub1',"
-                + "bootstrap.servers='nats://localhost:4222',"
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "cluster.id='test-cluster'"
                 + ")"
                 + "@sink(type='nats', @map(type='xml'), "
                 + "destination='nats-source-test-siddhi-2', "
                 + "client.id='test-plan5-siddhi-sink-pub2',"
-                + "bootstrap.servers='nats://localhost:4222',"
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "cluster.id='test-cluster'"
                 + ")"
                 + "define stream inputStream (name string, age int, country string);";
 
-        natsClient.subsripeFromNow("nats-source-test-siddhi-1");
-        natsClient.subsripeFromNow("nats-source-test-siddhi-2");
+        NATSClient.subsripeFromNow("nats-source-test-siddhi-1");
+        NATSClient.subsripeFromNow("nats-source-test-siddhi-2");
 
         SiddhiAppRuntime executionPlanRuntime = siddhiManager.createSiddhiAppRuntime(inStreamDefinition);
         InputHandler inputStream = executionPlanRuntime.getInputHandler("inputStream");
@@ -202,23 +217,24 @@ public class NatsSinkTestCase {
     }
 
     /**
-     * Test the nats sink configurations with mandatory parameters only.
+     * Test the NATS sink configurations with mandatory parameters only.
      */
     @Test
     public void testNatsSinkWithMandatoryConfigurations() throws InterruptedException, IOException, TimeoutException {
         ResultContainer resultContainer = new ResultContainer(2,3);
-        NatsClient natsClient = new NatsClient("test-cluster","stan_test6","nats://localhost:4222"
-                , resultContainer);
-        natsClient.connect();
+        NATSClient NATSClient = new NATSClient("test-cluster","stan_test6","nats://localhost:"
+                + port, resultContainer);
+        NATSClient.connect();
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "@App:name('Test-plan6')\n"
                 + "@sink(type='nats', @map(type='xml'), "
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "destination='nats-test6' "
                 + ")"
                 + "define stream inputStream (name string, age int, country string);";
 
-        natsClient.subsripeFromNow("nats-test6");
+        NATSClient.subsripeFromNow("nats-test6");
         SiddhiAppRuntime executionPlanRuntime = siddhiManager.
                 createSiddhiAppRuntime(inStreamDefinition);
         InputHandler inputStream = executionPlanRuntime.getInputHandler("inputStream");
@@ -234,12 +250,13 @@ public class NatsSinkTestCase {
     }
 
     /**
-     * If invalid cluster name is provided in nats sink configurations then {@link ConnectionUnavailableException}
+     * If invalid cluster name is provided in NATS sink configurations then {@link ConnectionUnavailableException}
      * should have been thrown. Here incorrect cluster id provided. Hence the connection will fail.
      */
     @Test
     public void testIncorrectClusterName() throws InterruptedException {
         log.info("Test with connection unavailable exception");
+        log = Logger.getLogger(Sink.class);
         UnitTestAppender appender = new UnitTestAppender();
         log.addAppender(appender);
         SiddhiManager siddhiManager = new SiddhiManager();
@@ -248,7 +265,7 @@ public class NatsSinkTestCase {
                 + "@sink(type='nats', @map(type='xml'), "
                 + "destination='nats-test7', "
                 + "client.id='test-plan7-siddhi',"
-                + "bootstrap.servers='nats://localhost:4222',"
+                + "bootstrap.servers='" + "nats://localhost:"+ port +"', "
                 + "cluster.id='nats-cluster'"
                 + ")"
                 + "define stream inputStream (name string, age int, country string);";
@@ -257,18 +274,19 @@ public class NatsSinkTestCase {
         executionPlanRuntime.start();
         Thread.sleep(1000);
 
-        Assert.assertTrue(appender.getMessages().contains("Error while connecting to nats server at destination:"));
+        Assert.assertTrue(appender.getMessages().contains("Error while connecting to NATS server at destination:"));
         siddhiManager.shutdown();
     }
 
     /**
-     * If incorrect bootstrap server url is provided in nats sink configurations then
+     * If incorrect bootstrap server url is provided in NATS sink configurations then
      * {@link ConnectionUnavailableException} should have been thrown. Here incorrect cluster url is provided hence the
      * connection will fail.
      */
     @Test
     public void testIncorrectNatsServerUrl() throws InterruptedException {
         log.info("Test with connection unavailable exception");
+        log = Logger.getLogger(Sink.class);
         UnitTestAppender appender = new UnitTestAppender();
         log.addAppender(appender);
         SiddhiManager siddhiManager = new SiddhiManager();
@@ -289,12 +307,16 @@ public class NatsSinkTestCase {
         executionPlanRuntime.start();
         Thread.sleep(1000);
 
-        Assert.assertTrue(appender.getMessages().contains("Error while connecting to nats server at destination:"));
+        Assert.assertTrue(appender.getMessages().contains("Error while connecting to NATS server at destination:"));
         siddhiManager.shutdown();
     }
 
+    /**
+     * If the map annotation is not included in the sink annotation then {@link SiddhiAppCreationException} should be
+     * thrown.
+     */
     @Test(expectedExceptions = SiddhiAppCreationException.class)
-    public void jmsTopicPublishTest3() {
+    public void testMissingMappingAnnotation() {
         SiddhiAppRuntime executionPlanRuntime = null;
         try {
             SiddhiManager siddhiManager = new SiddhiManager();

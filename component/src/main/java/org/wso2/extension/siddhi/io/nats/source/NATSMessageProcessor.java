@@ -19,25 +19,28 @@ package org.wso2.extension.siddhi.io.nats.source;
 
 import io.nats.streaming.Message;
 import io.nats.streaming.MessageHandler;
-import org.wso2.siddhi.core.config.SiddhiAppContext;
+import org.apache.log4j.Logger;
+import org.wso2.extension.siddhi.io.nats.source.exception.NATSInputAdaptorRuntimeException;
 import org.wso2.siddhi.core.stream.input.source.SourceEventListener;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Process the nats subject subscription channel in concurrent safe manner.
+ * Process the NATS subject subscription channel in concurrent safe manner.
  */
-public class NatsMessageProcessor implements MessageHandler {
+public class NATSMessageProcessor implements MessageHandler {
+    private static final Logger log = Logger.getLogger(NATSMessageProcessor.class);
     private SourceEventListener sourceEventListener;
     private boolean paused;
     private ReentrantLock lock;
     private Condition condition;
     private AtomicInteger messageSequenceTracker;
 
-    public NatsMessageProcessor(SourceEventListener sourceEventListener, SiddhiAppContext siddhiAppContext ,
-                                AtomicInteger messageSequenceTracker) {
+    protected NATSMessageProcessor(SourceEventListener sourceEventListener, AtomicInteger messageSequenceTracker) {
         this.sourceEventListener = sourceEventListener;
         this.messageSequenceTracker = messageSequenceTracker;
         lock = new ReentrantLock();
@@ -58,9 +61,19 @@ public class NatsMessageProcessor implements MessageHandler {
         }
         sourceEventListener.onEvent(msg.getData(), new String[0]);
         messageSequenceTracker.incrementAndGet();
+
+        try {
+            msg.ack();
+        } catch (IOException e) {
+            String message = new String(msg.getData(), StandardCharsets.UTF_8);
+            log.error("Error occurred while sending the ack for message : " + message + ".Received to the stream: "
+                    + sourceEventListener.getStreamDefinition().getId());
+            throw new NATSInputAdaptorRuntimeException("Error occurred while sending the ack for message : " + message
+                    + ".Received to the stream: " + sourceEventListener.getStreamDefinition().getId(), e);
+        }
     }
 
-    public AtomicInteger getMessageSequenceTracker() {
+    protected AtomicInteger getMessageSequenceTracker() {
         return messageSequenceTracker;
     }
 
